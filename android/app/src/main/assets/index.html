@@ -535,14 +535,9 @@ async function openMeditation(){
   const data = { date: `${mo}월 ${d}일 (${'일월화수목금토'[new Date(Date.UTC(y,mo-1,d)).getUTCDay()]})`, title: m.verse || '',
     qa: QS.filter(([k]) => (m[k]||'').trim()).map(([k, l]) => [l, m[k].trim()]) };
   const url = await drawMeditation(data);
+  // 보는 용도만(2026-11-12 룡: 수정할 일 없고, 공유는 묵상할 때 바로 함). 바깥이나 「닫기」를 누르면 닫힌다
   s.querySelector('.in').innerHTML = `<h3>📖 오늘 묵상</h3><img src="${url}" style="width:100%;border-radius:10px;border:1px solid var(--line)">
-    <div style="display:flex;gap:8px;margin-top:12px"><button class="ghost" id="ed">✏️ 수정</button><button id="sh">공유하기</button></div>
-    <div class="small mute" id="nt" style="margin-top:6px"></div>`;
-  s.querySelector('#ed').onclick = () => { closeSheet(); openSpiritApp('묵상'); };
-  s.querySelector('#sh').onclick = () => {
-    if (window.Native && Native.shareImage) Native.shareImage(url, `묵상_${SP.today.replace(/-/g,'')}.png`);
-    else { const a = document.createElement('a'); a.href = url; a.download = '묵상.png'; a.click(); }
-  };
+    <button class="ghost" style="margin-top:12px" onclick="closeSheet()">닫기</button>`;
 }
 // 영성 기록 사이트의 묵상 이미지와 같은 꼴(index.html drawMeditation): 날짜·장절 + ①~④ 답, 성경 본문 글은 넣지 않는다(저작권)
 async function drawMeditation(d){
