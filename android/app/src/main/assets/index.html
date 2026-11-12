@@ -38,10 +38,40 @@ button.ghost{background:transparent;color:var(--mute);border:1px solid var(--lin
 .toast.on{opacity:1}
 svg text{font-family:inherit}
 .foot{text-align:center;font-size:12px;color:var(--gray);margin-top:14px}
+body.tabs{padding-bottom:84px}
+.nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:flex;z-index:5}
+.nav b{flex:1;text-align:center;padding:12px 0 14px;font-size:14px;color:var(--mute);font-weight:600}
+.nav b.on{color:var(--brand)}
+.mini{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.mini .lv{font-size:22px}
+.town{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 12px;text-align:center;position:relative;min-height:138px}
+.tile:active{transform:scale(.97)}
+.tile .ic{font-size:44px;line-height:1.1}
+.tile .nm{font-weight:700;margin-top:6px;font-size:16px}
+.tile .st{font-size:12px;color:var(--mute);margin-top:4px;line-height:1.4}
+.tile .got{position:absolute;top:8px;right:8px;background:#eef6f1;color:var(--ok);font-size:11px;font-weight:700;border-radius:10px;padding:2px 7px}
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:8;display:flex;align-items:flex-end}
+.sheet .in{background:var(--bg);width:100%;max-height:88vh;overflow:auto;border-radius:18px 18px 0 0;padding:18px 16px 28px}
+.sheet h3{margin:0 0 12px;font-size:18px}
+.faces{display:flex;gap:10px}.faces button{font-size:30px;background:#fff;border:1px solid var(--line);padding:12px 0}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chip{border:1px solid var(--line);background:#fff;border-radius:18px;padding:7px 12px;font-size:13px}
+.chip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.seg{display:flex;gap:6px;margin-bottom:8px}.seg button{background:#fff;color:var(--mute);border:1px solid var(--line);padding:9px}
+.seg button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+select{width:100%;font:inherit;padding:11px;border:1px solid var(--line);border-radius:10px;background:#fff;margin:6px 0}
+.task{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px}
+.task .ck{width:30px;height:30px;border-radius:50%;border:2px solid var(--brand);flex:none;background:#fff}
+.task .tt{flex:1;font-size:14px}
+.reward{position:fixed;left:50%;top:38%;transform:translate(-50%,0);font-size:34px;font-weight:800;color:var(--ok);z-index:12;pointer-events:none;animation:rw 1.4s ease-out forwards}
+@keyframes rw{0%{opacity:0;transform:translate(-50%,20px) scale(.8)}20%{opacity:1;transform:translate(-50%,0) scale(1.1)}100%{opacity:0;transform:translate(-50%,-60px) scale(1)}}
 </style>
 </head>
 <body>
+<div id="town"></div>
 <div id="app"><div class="card mute">불러오는 중…</div></div>
+<div class="nav" id="nav" style="display:none"><b id="t-town" onclick="tab('town')">🏘️ 마을</b><b id="t-app" onclick="tab('app')">📊 상태창</b></div>
 <div id="toast" class="toast"></div>
 <script>
 // ===== 규칙 (설계안 2판, 2026-11-12 룡 컨펌) =====
@@ -193,7 +223,7 @@ function render(res, data){
     <div class="card"><h2>시즌 ${res.season} · ${res.weekIdx}/13주 <span class="small" style="float:right">${md(res.seasonStart)}~${md(res.seasonEnd)}</span></h2>
       <div class="small">고른 주(모든 칸 한 번 이상): <b>${res.balWeeks}주</b>${res.balNow ? ' · 이번 주 ✓' : ''} <span class="mute">· 배지 1·4·8·12주</span></div></div>
     <div class="card"><h2>누적 배지 (기록한 날)</h2>${badges}</div>
-    <div class="foot">기록은 6대 기록 앱에서 · 이 앱은 보여 주기만 해요<br>
+    <div class="foot">마을에서 적은 것도 각 기록 앱에 똑같이 쌓여요<br>
       <span onclick="logout()" style="text-decoration:underline">로그아웃</span>${window.Native ? ' · 버전 '+Native.version() : ''}</div>`;
   levelUps(res, cl);
   ls.set('rpg_last', {date: res.today, xp: res.totalXp});
@@ -219,9 +249,16 @@ function levelUps(res, cl){
 async function load(){
   if (!token()) return loginView();
   try {
-    const data = await rpc('rpg_days', {p_token: token()});
+    const [data, home] = await Promise.all([rpc('rpg_days', {p_token: token()}), rpc('rpg_home', {p_token: token()})]);
+    const before = RES ? RES.totalXp : null;
     const res = compute(data), peaks = applyPeaks(res, data.peaks);
+    HOME = home;
     render(res, data);
+    town(res, home);
+    document.getElementById('nav').style.display = 'flex';
+    document.body.classList.add('tabs');
+    tab(CUR);
+    if (before !== null && res.totalXp > before) reward('+' + (res.totalXp - before) + ' EXP');
     rpc('rpg_save_peaks', {p_token: token(), p_peaks: peaks}).catch(() => {});
   } catch(e) {
     if (e && e.body && JSON.stringify(e.body).includes('auth')) { setToken(''); return loginView(); }
@@ -231,6 +268,10 @@ async function load(){
 }
 
 function loginView(){
+  document.getElementById('nav').style.display = 'none';
+  document.getElementById('town').innerHTML = '';
+  document.getElementById('app').style.display = '';
+  document.body.classList.remove('tabs');
   document.getElementById('app').innerHTML = `<div class="card"><h2 style="color:var(--ink);font-size:18px">라이프 RPG</h2>
     <div class="small mute">업무 기록 아이디(예: 깐깐룡이)와 비밀번호</div>
     <input id="id" autocomplete="username" placeholder="아이디"><input id="pw" type="password" autocomplete="current-password" placeholder="비밀번호">
@@ -247,7 +288,142 @@ function loginView(){
 }
 
 window.logout = () => { const t = token(); rpc('rpg_logout', {p_token: t}).catch(() => {}); setToken(''); ls.set('rpg_seen', null); loginView(); };
-window.appBack = () => { const o = document.querySelector('.ov'); if (o) { o.remove(); return true; } return false; };
+window.appBack = () => {
+  const o = document.querySelector('.ov, .sheet'); if (o) { o.remove(); return true; }
+  if (CUR !== 'town' && document.getElementById('nav').style.display !== 'none') { tab('town'); return true; }
+  return false;
+};
+
+// ===== 마을: 아이콘으로 바로 기록 (2단계, 2026-11-12 룡) =====
+// 기록은 기존 앱과 같은 표에 쌓인다: 집 = 건강 기록, 지갑 = 재정 기록, 퀘스트 = 업무 기록, 아빠 집 = 영성 기록 앱을 연다.
+let HOME = null, CUR = ls.get('rpg_tab', 'town');
+function tab(t){
+  CUR = t; ls.set('rpg_tab', t);
+  document.getElementById('town').style.display = t === 'town' ? '' : 'none';
+  document.getElementById('app').style.display = t === 'app' ? '' : 'none';
+  document.getElementById('t-town').className = t === 'town' ? 'on' : '';
+  document.getElementById('t-app').className = t === 'app' ? 'on' : '';
+  scrollTo(0, 0);
+}
+function reward(txt){ const r = document.createElement('div'); r.className = 'reward'; r.textContent = txt; document.body.appendChild(r); setTimeout(() => r.remove(), 1500); }
+const won = n => Number(n).toLocaleString('ko-KR') + '원';
+const FACE = {1:'😫', 2:'😐', 3:'😄'};
+
+function town(res, h){
+  const cl = Math.floor(res.charShown), cp = res.charShown - cl;
+  const got = a => res.areas[a].todayItems ? `<span class="got">${res.areas[a].todayXp ? '+'+res.areas[a].todayXp : '✓'}</span>` : '';
+  const hh = h.health;
+  const homeSt = !hh ? '건강 기록 계정 없음'
+    : hh.need === 'bed_yesterday' ? '어젯밤 잔 시각부터'
+    : hh.need === 'wake' ? '아직 안 일어남'
+    : hh.bed ? `일어남 ${hh.wake} · 잠 ${hh.bed}` : `일어남 ${hh.wake} ${FACE[hh.condition]||''}`;
+  const sp = h.spirit_today || [];
+  document.getElementById('town').innerHTML = `
+    <div class="mini"><span class="lv">Lv ${cl}</span><div class="bar"><i style="width:${Math.round(cp*100)}%"></i></div>
+      <span class="small mute">오늘 +${res.todayXp}</span></div>
+    <div class="town">
+      <div class="tile" onclick="openHome()">${got('건강')}<div class="ic">🏠</div><div class="nm">집</div><div class="st">${homeSt}</div></div>
+      <div class="tile" onclick="openWallet()">${got('재정')}<div class="ic">👛</div><div class="nm">지갑</div><div class="st">${h.fin_today ? '오늘 내가 '+h.fin_today+'건' : '돈 쓰거나 받았을 때'}</div></div>
+      <div class="tile" onclick="openQuest()">${got('일')}<div class="ic">📜</div><div class="nm">퀘스트</div><div class="st">남은 ${h.tasks.length} · 오늘 끝냄 ${h.tasks_done_today}</div></div>
+      <div class="tile" onclick="openFather()">${got('영성')}<div class="ic">⛪</div><div class="nm">아빠 집</div><div class="st">${sp.length ? sp.join(' · ')+' ✓' : '아직'}</div></div>
+    </div>
+    <div class="card" style="margin-top:12px"><h2>오늘 나아간 것</h2><div class="small">${
+      AREAS.filter(a => res.areas[a].todayItems).map(a => '✓ '+a+' · '+esc(itemsText(res.areas[a].todayItems))).join('<br>') || '<span class="mute">아직 없어요. 아이콘을 눌러 시작해요</span>'}</div></div>
+    <div class="small mute" style="text-align:center">관계(통화·카톡)는 자동으로 들어와요</div>`;
+}
+
+function sheet(html){
+  document.querySelectorAll('.sheet').forEach(s => s.remove());
+  const s = document.createElement('div'); s.className = 'sheet';
+  s.innerHTML = `<div class="in">${html}</div>`;
+  s.onclick = e => { if (e.target === s) s.remove(); };
+  document.body.appendChild(s); return s;
+}
+const closeSheet = () => document.querySelectorAll('.sheet').forEach(s => s.remove());
+async function save(fn, args, okMsg){
+  try { const r = await rpc(fn, Object.assign({p_token: token()}, args));
+    if (r && r.error) { toast(r.error); return r; }
+    if (r && r.need) return r;
+    closeSheet(); if (okMsg) toast(okMsg); await load(); return r;
+  } catch(e) { toast('저장하지 못했어요. 인터넷을 확인해 주세요'); return null; }
+}
+
+// 🏠 집 = 건강 기록(일어났어요·잘게요). 하루 경계는 새벽 4시(건강 기록과 같음)
+window.openHome = () => {
+  const h = HOME.health;
+  if (!h) return toast('건강 기록 계정이 이어져 있지 않아요');
+  if (h.need) {
+    const yb = h.need === 'bed_yesterday';
+    const s = sheet(`<h3>🏠 일어났어요</h3>
+      ${yb ? `<div class="small mute">어젯밤 몇 시에 잤어요?</div><input id="yb" type="time" value="23:00">` : ''}
+      <div class="small mute" style="margin:8px 0">지금 컨디션은?</div>
+      <div class="faces"><button data-c="1">😫</button><button data-c="2">😐</button><button data-c="3">😄</button></div>`);
+    s.querySelectorAll('[data-c]').forEach(b => b.onclick = () =>
+      save('rpg_wake', {p_condition: +b.dataset.c, p_yesterday_bed: yb ? s.querySelector('#yb').value : null}, '좋은 아침이에요'));
+  } else if (!h.bed) {
+    const s = sheet(`<h3>🏠 집</h3><div class="small mute">오늘 ${h.wake}에 일어났어요 ${FACE[h.condition]||''}</div>
+      <button style="margin-top:14px" id="b">🌙 잘게요</button><div class="small mute" style="margin-top:8px">지금 시각으로 잠든 시각을 적어요</div>`);
+    s.querySelector('#b').onclick = () => save('rpg_bed', {}, '잘 자요');
+  } else sheet(`<h3>🏠 집</h3><div>오늘은 다 적었어요</div><div class="small mute" style="margin-top:6px">일어남 ${h.wake} · 잠 ${h.bed}</div>`);
+};
+
+// 👛 지갑 = 재정 기록(오늘 날짜로 한 줄). 자주 쓴 항목이 먼저
+window.openWallet = () => {
+  let kind = '지출', pick = null;
+  const label = i => [i.middle, i.detail].filter(Boolean).join(' · ') + (i.area ? ' ('+i.area+')' : '');
+  const bookName = id => (HOME.books.find(b => b.id === id) || {}).name || '';
+  const s = sheet(`<h3>👛 지갑</h3>
+    <div class="seg"><button data-k="지출" class="on">− 썼어요</button><button data-k="수입">+ 받았어요</button></div>
+    <input id="amt" inputmode="numeric" placeholder="금액(원)">
+    <div class="small mute">무엇에? (자주 쓴 것)</div><div class="chips" id="chips"></div>
+    <select id="all"></select>
+    <input id="memo" placeholder="메모(선택)">
+    <div class="err" id="err"></div><button id="go">기록</button>`);
+  const draw = () => {
+    const list = HOME.items.filter(i => i.kind === kind);
+    const top = [...list].sort((a,b) => b.n - a.n).filter(i => i.n > 0).slice(0, 8);
+    s.querySelector('#chips').innerHTML = top.map(i => `<span class="chip${pick===i.id?' on':''}" data-i="${i.id}">${esc(label(i))}</span>`).join('') || '<span class="small mute">아직 없어요</span>';
+    s.querySelectorAll('.chip').forEach(c => c.onclick = () => { pick = c.dataset.i; s.querySelector('#all').value = pick; draw(); });
+    let html = '<option value="">전체 항목에서 고르기</option>', g = '';
+    for (const i of list) { const k = bookName(i.book)+' · '+i.bucket; if (k !== g) { if (g) html += '</optgroup>'; html += `<optgroup label="${esc(k)}">`; g = k; }
+      html += `<option value="${i.id}"${pick===i.id?' selected':''}>${esc(label(i))}</option>`; }
+    s.querySelector('#all').innerHTML = html + (g ? '</optgroup>' : '');
+  };
+  s.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { kind = b.dataset.k; pick = null;
+    s.querySelectorAll('[data-k]').forEach(x => x.className = x === b ? 'on' : ''); draw(); });
+  s.querySelector('#all').onchange = e => { pick = e.target.value || null; draw(); };
+  s.querySelector('#amt').oninput = e => { s.querySelector('#err').textContent = ''; };
+  s.querySelector('#go').onclick = () => {
+    const amt = parseInt(String(s.querySelector('#amt').value).replace(/[^0-9]/g,''), 10), err = s.querySelector('#err');
+    if (!amt) { err.textContent = '금액을 넣어 주세요'; return; }
+    if (!pick) { err.textContent = '무엇에 썼는지 골라 주세요'; return; }
+    save('rpg_fin_add', {p_item: pick, p_amount: amt, p_memo: s.querySelector('#memo').value}, won(amt)+' 적었어요');
+  };
+  draw();
+};
+
+// 📜 퀘스트 = 업무 기록(내가 나에게 준 할 일 중 오늘까지인 것). 누르면 완료
+window.openQuest = () => {
+  const t = HOME.tasks;
+  const s = sheet(`<h3>📜 오늘의 퀘스트</h3>
+    ${t.length ? t.map(x => `<div class="task"><button class="ck" data-id="${x.id}" aria-label="완료"></button>
+      <div class="tt">${x.important ? '⭐ ' : ''}${esc(x.title)}<div class="small mute">${x.company ? esc(x.company)+' · ' : ''}${x.due ? md(x.due)+'까지' : ''}</div></div></div>`).join('')
+      : '<div class="mute">오늘까지인 내 할 일이 없어요</div>'}
+    <div class="small mute" style="margin-top:8px">새 할 일 적기·요청받은 일은 업무 기록 앱에서</div>`);
+  s.querySelectorAll('.ck').forEach(b => b.onclick = () => { b.style.background = 'var(--brand)'; save('rpg_task_done', {p_id: b.dataset.id}, '퀘스트 완료'); });
+};
+
+// ⛪ 아빠 집 = 영성 기록 앱을 연다(묵상·가정예배·일기는 그 앱에서. 대신 쓰지 않는다)
+window.openFather = () => {
+  const sp = HOME.spirit_today || [];
+  const s = sheet(`<h3>⛪ 아빠 집</h3>
+    <div class="small">${['묵상','감사','칭찬','SOC','일기'].map(k => (sp.includes(k) ? '✓ ' : '· ') + k).join('<br>')}</div>
+    <button style="margin-top:14px" id="go">영성 기록 열기</button>
+    <div class="small mute" style="margin-top:8px">적고 돌아오면 여기에 바로 쌓여요</div>`);
+  s.querySelector('#go').onclick = () => { closeSheet();
+    if (window.Native && Native.openApp) Native.openApp('app.personalrecord', 'https://personal-record-alpha.vercel.app');
+    else open('https://personal-record-alpha.vercel.app'); };
+};
 window.onNative = ev => { if (ev === 'resume') load(); };
 let y0 = null; // 아래로 당기면 새로고침
 addEventListener('touchstart', e => { y0 = scrollY === 0 ? e.touches[0].clientY : null; }, {passive:true});

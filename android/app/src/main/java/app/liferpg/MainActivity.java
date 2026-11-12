@@ -150,6 +150,15 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void openBattery() {
             open(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName())));
         }
+        // 아빠 집: 영성 기록 앱을 연다(없으면 사이트)
+        @JavascriptInterface public void openApp(String pkg, String url) {
+            runOnUiThread(() -> {
+                Intent i = getPackageManager().getLaunchIntentForPackage(pkg);
+                if (i == null) i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                try { startActivity(i); } catch (Exception e) { js("toast('영성 기록을 열 수 없어요')"); }
+            });
+        }
+
         @JavascriptInterface public void testDaily() {
             new Thread(() -> Daily.report(getApplicationContext())).start();
         }

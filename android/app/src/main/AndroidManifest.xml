@@ -11,6 +11,11 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
 
+    <!-- 아빠 집: 영성 기록 앱을 열려면 그 앱이 보여야 한다(안드로이드 11+) -->
+    <queries>
+        <package android:name="app.personalrecord" />
+    </queries>
+
     <application
         android:label="라이프 RPG"
         android:icon="@mipmap/ic_launcher"
