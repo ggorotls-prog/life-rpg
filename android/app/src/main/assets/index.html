@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>라이프 RPG</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--ink:#1f1f1d;--mute:#6b6a64;--line:#e4e2db;--brand:#3b5b8c;--brand2:#e8eef7;--ok:#2f7d5b;--gray:#b9b7af}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"Pretendard Variable",Pretendard,system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+body{padding:14px 14px 40px;max-width:520px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+h2{font-size:15px;font-weight:600;margin:0 0 10px;color:var(--mute)}
+.row{display:flex;align-items:center;gap:10px}
+.mute{color:var(--mute)}.small{font-size:13px}
+.bar{height:8px;background:#eeece6;border-radius:5px;overflow:hidden;flex:1}
+.bar>i{display:block;height:100%;background:var(--brand);border-radius:5px;transition:width .6s}
+.avatar{width:58px;height:58px;border-radius:50%;background:var(--brand2);color:var(--brand);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:22px;flex:none}
+.lv{font-size:28px;font-weight:700;color:var(--brand)}
+.stat{display:grid;grid-template-columns:42px 1fr 64px;align-items:center;gap:8px;margin:9px 0;font-size:14px}
+.stat .n{text-align:right;color:var(--mute);font-size:13px}
+.stat.off{color:var(--gray)}.stat.off .bar>i{background:#ddd}
+.today li{list-style:none;padding:7px 0;border-bottom:1px solid #f0eee8;display:flex;gap:8px;font-size:14px}
+.today li:last-child{border:0}.today ul{margin:0;padding:0}
+.today .xp{margin-left:auto;color:var(--ok);font-weight:600}
+.today .not{color:var(--gray)}
+.pill{display:inline-block;background:var(--brand2);color:var(--brand);border-radius:20px;padding:3px 10px;font-size:12px;margin:2px 4px 2px 0}
+.banner{background:#eef6f1;color:#245c43;border-radius:10px;padding:10px 12px;font-size:14px;margin-bottom:12px}
+input{width:100%;font:inherit;padding:12px;border:1px solid var(--line);border-radius:10px;margin:6px 0;background:#fff}
+button{font:inherit;border:0;background:var(--brand);color:#fff;border-radius:10px;padding:12px 16px;width:100%;font-weight:600}
+button.ghost{background:transparent;color:var(--mute);border:1px solid var(--line)}
+.err{color:#b33;font-size:13px;min-height:18px}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9;padding:24px}
+.ov .card{width:100%;max-width:360px;text-align:center}
+.big{font-size:44px;font-weight:800;color:var(--brand);margin:6px 0}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#1f1f1d;color:#fff;padding:10px 16px;border-radius:20px;font-size:14px;z-index:10;opacity:0;transition:opacity .3s}
+.toast.on{opacity:1}
+svg text{font-family:inherit}
+.foot{text-align:center;font-size:12px;color:var(--gray);margin-top:14px}
+</style>
+</head>
+<body>
+<div id="app"><div class="card mute">불러오는 중…</div></div>
+<div id="toast" class="toast"></div>
+<script>
+// ===== 규칙 (설계안 2판, 2026-11-12 룡 컨펌) =====
+// 단위 하나: 영역마다 기록한 날 하루 = 10. 재정·관계는 하루 25, 한 주 70까지(주 3일이면 가득).
+// 영역 레벨: 다음 레벨까지 10 × (지금 레벨 + 1). 누적 = 5L² + 5L − 10.
+// 캐릭터 레벨 = (영역 레벨 합 + 가장 낮은 영역 × 2) ÷ (영역 수 + 2). 고르게 클수록 빨리 오름.
+// 한 번 닿은 레벨은 내려가지 않음(서버 rpg_players.peaks). 벌칙·끊김 표시 없음.
+const AREAS = ['일','관계','재정','건강','지성','영성'];
+const WEEKLY = {'재정':1,'관계':1};
+const READY = {'지성':'지성 기록이 생기면 시작돼요'}; // 아직 수집 통로가 없는 영역
+const BADGE_DAYS = [10,30,100,200,365,500,1000,2000,3650];
+const SEASON0 = '2026-11-09'; // 첫 시즌 시작(월), 13주씩
+
+// ===== 날짜 =====
+const D = s => { const [y,m,d] = s.split('-').map(Number); return Date.UTC(y,m-1,d); };
+const S = t => new Date(t).toISOString().slice(0,10);
+const add = (s,n) => S(D(s)+n*864e5);
+const monday = s => { const w = (new Date(D(s)).getUTCDay()+6)%7; return add(s,-w); };
+const md = s => (+s.slice(5,7))+'/'+(+s.slice(8,10));
+
+// ===== 서버 =====
+const KEY = 'sb_publishable_BqE1VCDg50oi9zCflCjMuw_wYF55CTj', SB = 'https://trlnatdkebjvgiqneulv.supabase.co';
+const cbs = {}; let cbN = 0;
+window.__rpc = (cb, status, body) => { const f = cbs[cb]; delete cbs[cb]; f && f(status, body); };
+function rpc(fn, args){
+  return new Promise((ok, no) => {
+    const done = (st, body) => { let j = null; try { j = JSON.parse(body); } catch(e){}
+      if (st >= 200 && st < 300) ok(j); else no({status:st, body:j}); };
+    if (window.Native) { const id = 'c'+(++cbN); cbs[id] = done; Native.rpc(fn, JSON.stringify(args||{}), id); }
+    else fetch(SB+'/rest/v1/rpc/'+fn, {method:'POST', headers:{apikey:KEY,'Content-Type':'application/json'}, body:JSON.stringify(args||{})})
+      .then(r => r.text().then(t => done(r.status, t))).catch(() => done(0, ''));
+  });
+}
+const token = () => window.Native ? Native.token() : (localStorage.getItem('rpg_token')||'');
+const setToken = t => window.Native ? Native.setToken(t) : localStorage.setItem('rpg_token', t);
+const ls = { get(k,d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch(e){ return d; } },
+             set(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} } };
+
+function toast(m){ const t = document.getElementById('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 2400); }
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ===== 계산 =====
+const cum = L => 5*L*L + 5*L - 10;
+function levelOf(xp){ let L = 1; while (cum(L+1) <= xp) L++; const need = 10*(L+1), into = xp - cum(L); return {L, into, need, f: L + into/need}; }
+
+function compute(data){
+  const today = data.today, byArea = {};
+  AREAS.forEach(a => byArea[a] = {}); // 날짜 → {항목: 개수}
+  for (const [d,a,i,n] of data.rows) { if (!byArea[a]) continue; (byArea[a][d] = byArea[a][d] || {})[i] = n; }
+  const wk0 = monday(today), m28 = add(today,-27), p28 = add(today,-55);
+  const res = {today, areas:{}};
+  for (const a of AREAS) {
+    const days = Object.keys(byArea[a]).sort();
+    const r = {a, days, ready: !READY[a] || days.length > 0};
+    let xp = 0, todayXp = 0;
+    if (WEEKLY[a]) {
+      const wk = {}; days.forEach(d => { const k = monday(d); wk[k] = (wk[k]||0) + 1; });
+      for (const k in wk) xp += Math.min(70, 25*wk[k]);
+      if (byArea[a][today]) { const n = wk[wk0]||0; todayXp = Math.min(70,25*n) - Math.min(70,25*(n-1)); }
+    } else { xp = 10*days.length; if (byArea[a][today]) todayXp = 10; }
+    r.xp = xp; r.todayXp = todayXp; r.lv = levelOf(xp);
+    r.week = days.filter(d => d >= wk0).length;
+    r.d28 = days.filter(d => d >= m28).length;
+    r.p28 = days.filter(d => d >= p28 && d < m28).length;
+    r.shape = WEEKLY[a] ? Math.min(1, r.d28/12) : r.d28/28;
+    r.todayItems = byArea[a][today] || null;
+    r.total = days.length;
+    r.next = BADGE_DAYS.find(b => b > r.total) || null;
+    r.prevB = [...BADGE_DAYS].reverse().find(b => b <= r.total) || 0;
+    res.areas[a] = r;
+  }
+  const act = AREAS.filter(a => res.areas[a].ready);
+  const fs = act.map(a => res.areas[a].lv.f), mn = Math.min(...fs);
+  res.char = (fs.reduce((x,y) => x+y, 0) + 2*mn) / (act.length + 2);
+  res.minArea = act.reduce((m,a) => res.areas[a].lv.f < res.areas[m].lv.f ? a : m, act[0]);
+  res.todayXp = act.reduce((s,a) => s + res.areas[a].todayXp, 0);
+  res.totalXp = act.reduce((s,a) => s + res.areas[a].xp, 0);
+  // 고른 주: 그 주(월~일)에 시작된 영역이 모두 한 번 이상
+  const season = Math.floor((D(today) - D(SEASON0)) / (91*864e5));
+  const sStart = add(SEASON0, season*91);
+  res.season = season + 1; res.seasonStart = sStart; res.seasonEnd = add(sStart, 90);
+  let bal = 0, balNow = false;
+  for (let w = sStart; w <= today; w = add(w,7)) {
+    const ok = act.every(a => res.areas[a].days.some(d => d >= w && d < add(w,7)));
+    if (ok) { bal++; if (w === wk0) balNow = true; }
+  }
+  res.balWeeks = bal; res.balNow = balNow;
+  res.weekIdx = Math.floor((D(today) - D(sStart)) / (7*864e5)) + 1;
+  return res;
+}
+
+// 한 번 닿은 값은 안 내려감
+function applyPeaks(res, peaks){
+  peaks = peaks || {};
+  res.charShown = Math.max(res.char, +peaks.char || 0);
+  for (const a of AREAS) { const r = res.areas[a]; r.lvShown = Math.max(r.lv.L, +peaks[a] || 0); }
+  const out = {char: +res.char.toFixed(3)};
+  AREAS.forEach(a => out[a] = res.areas[a].lv.L);
+  return out;
+}
+
+// ===== 화면 =====
+const ITEM = {'할 일 끝냄':'할 일 끝냄','기상':'기상','취침':'취침','운동':'운동','식단':'식단','오운완':'오운완','묵상':'묵상','SOC':'SOC','감사':'감사','칭찬':'칭찬','일기':'일기','가정 장부':'가정 장부','기업 장부':'기업 장부','통화':'통화','메모':'메모','카톡 1:1':'카톡 1:1'};
+function itemsText(it){ return Object.entries(it).map(([k,n]) => (ITEM[k]||k) + (n > 1 ? ' '+n : '')).join(' · '); }
+
+function radar(res){
+  const act = AREAS, cx = 110, cy = 105, R = 78;
+  const pt = (i, r) => { const t = -Math.PI/2 + i*2*Math.PI/act.length; return [cx + r*Math.cos(t), cy + r*Math.sin(t)]; };
+  const ring = k => act.map((_,i) => pt(i, R*k).join(',')).join(' ');
+  const shape = act.map((a,i) => pt(i, R*Math.max(.04, res.areas[a].ready ? res.areas[a].shape : 0)).join(',')).join(' ');
+  const labels = act.map((a,i) => { const [x,y] = pt(i, R+16); return `<text x="${x}" y="${y+4}" text-anchor="middle" font-size="12" fill="${res.areas[a].ready?'#6b6a64':'#b9b7af'}">${a}</text>`; }).join('');
+  return `<svg viewBox="0 0 220 210" width="100%" style="max-width:280px;display:block;margin:0 auto">
+    ${[.33,.66,1].map(k => `<polygon points="${ring(k)}" fill="none" stroke="#e4e2db"/>`).join('')}
+    <polygon points="${shape}" fill="rgba(59,91,140,.18)" stroke="#3b5b8c" stroke-width="2"/>${labels}</svg>`;
+}
+
+let RES = null;
+function render(res, data){
+  RES = res;
+  const cl = Math.floor(res.charShown), cp = res.charShown - cl;
+  const last = ls.get('rpg_last', null);
+  let banner = '';
+  if (last && last.date < add(res.today,-1) && res.totalXp > last.xp)
+    banner = `<div class="banner">${md(last.date)} 뒤로 쌓인 것: +${res.totalXp - last.xp} EXP</div>`;
+  const stats = AREAS.map(a => { const r = res.areas[a];
+    if (!r.ready) return `<div class="stat off"><span>${a}</span><div class="bar"><i style="width:0"></i></div><span class="n">준비 중</span></div>`;
+    return `<div class="stat"><span>${a}</span><div class="bar"><i style="width:${Math.round(r.lv.into/r.lv.need*100)}%"></i></div><span class="n">Lv ${r.lvShown}</span></div>`; }).join('');
+  const todayList = AREAS.map(a => { const r = res.areas[a];
+    if (!r.ready) return `<li class="not">· ${a} — ${READY[a]}</li>`;
+    if (!r.todayItems) return `<li class="not">· ${a} <span style="margin-left:auto" class="small">이번 주 ${r.week}일</span></li>`;
+    return `<li><span>✓ ${a} · ${esc(itemsText(r.todayItems))}</span><span class="xp">${r.todayXp ? '+'+r.todayXp : '가득'}</span></li>`; }).join('');
+  const cmp = AREAS.filter(a => res.areas[a].ready).map(a => { const r = res.areas[a], d = r.d28 - r.p28;
+    return `<span class="pill">${a} ${r.d28}일${d ? (d > 0 ? ' ▲'+d : ' ▽'+(-d)) : ''}</span>`; }).join('');
+  const badges = AREAS.filter(a => res.areas[a].ready).map(a => { const r = res.areas[a];
+    const pct = r.next ? Math.round((r.total - r.prevB)/(r.next - r.prevB)*100) : 100;
+    return `<div class="stat"><span>${a}</span><div class="bar"><i style="width:${pct}%;background:#c9a227"></i></div><span class="n">${r.total}${r.next ? '/'+r.next : ''}일</span></div>`; }).join('');
+  document.getElementById('app').innerHTML = `
+    ${banner}
+    <div class="card">
+      <div class="row"><div class="avatar">${esc((data.name||'나').slice(0,1))}</div>
+        <div style="flex:1"><div class="row"><span class="lv">Lv ${cl}</span><span class="mute small">${esc(data.name||'')}</span></div>
+        <div class="row" style="margin-top:6px"><div class="bar"><i style="width:${Math.round(cp*100)}%"></i></div><span class="small mute">${Math.round(cp*100)}%</span></div></div></div>
+      <div class="small mute" style="margin-top:10px">고르게 기를수록 빨리 올라요 · 지금 가장 작은 칸: <b>${res.minArea}</b></div>
+    </div>
+    <div class="card today"><h2>오늘 나아간 것 <span class="small" style="float:right">+${res.todayXp} EXP</span></h2><ul>${todayList}</ul></div>
+    <div class="card"><h2>능력치</h2>${stats}</div>
+    <div class="card"><h2>최근 4주 모양</h2>${radar(res)}<div style="margin-top:8px">${cmp}</div>
+      <div class="small mute" style="margin-top:6px">▲▽ = 그 전 4주와 비교한 기록한 날</div></div>
+    <div class="card"><h2>시즌 ${res.season} · ${res.weekIdx}/13주 <span class="small" style="float:right">${md(res.seasonStart)}~${md(res.seasonEnd)}</span></h2>
+      <div class="small">고른 주(모든 칸 한 번 이상): <b>${res.balWeeks}주</b>${res.balNow ? ' · 이번 주 ✓' : ''} <span class="mute">· 배지 1·4·8·12주</span></div></div>
+    <div class="card"><h2>누적 배지 (기록한 날)</h2>${badges}</div>
+    <div class="foot">기록은 6대 기록 앱에서 · 이 앱은 보여 주기만 해요<br>
+      <span onclick="logout()" style="text-decoration:underline">로그아웃</span>${window.Native ? ' · 버전 '+Native.version() : ''}</div>`;
+  levelUps(res, cl);
+  ls.set('rpg_last', {date: res.today, xp: res.totalXp});
+  if (window.Native && Native.setSummary) Native.setSummary(JSON.stringify({
+    lv: cl, pct: Math.round(cp*100), today: res.today,
+    on: AREAS.map(a => res.areas[a].ready ? (res.areas[a].todayItems ? 1 : 0) : -1), names: AREAS, xp: res.todayXp }));
+}
+
+function levelUps(res, cl){
+  const seen = ls.get('rpg_seen', null), now = {char: cl};
+  AREAS.forEach(a => now[a] = res.areas[a].lvShown);
+  ls.set('rpg_seen', now);
+  if (!seen) return;
+  if (cl > (seen.char||0)) {
+    const o = document.createElement('div'); o.className = 'ov';
+    o.innerHTML = `<div class="card"><div class="mute">레벨 업</div><div class="big">Lv ${cl}</div><div class="small mute">여섯 칸을 고르게 기른 만큼 올랐어요</div><button style="margin-top:14px">좋아요</button></div>`;
+    o.onclick = () => o.remove(); document.body.appendChild(o); return;
+  }
+  const up = AREAS.filter(a => res.areas[a].lvShown > (seen[a]||0));
+  if (up.length) toast(up.map(a => a+' Lv '+res.areas[a].lvShown).join(' · ') + ' 올랐어요');
+}
+
+async function load(){
+  if (!token()) return loginView();
+  try {
+    const data = await rpc('rpg_days', {p_token: token()});
+    const res = compute(data), peaks = applyPeaks(res, data.peaks);
+    render(res, data);
+    rpc('rpg_save_peaks', {p_token: token(), p_peaks: peaks}).catch(() => {});
+  } catch(e) {
+    if (e && e.body && JSON.stringify(e.body).includes('auth')) { setToken(''); return loginView(); }
+    if (!RES) document.getElementById('app').innerHTML = `<div class="card">인터넷이 안 되거나 서버가 대답하지 않아요.<br><br><button onclick="load()">다시</button></div>`;
+    else toast('새로 못 불러왔어요');
+  }
+}
+
+function loginView(){
+  document.getElementById('app').innerHTML = `<div class="card"><h2 style="color:var(--ink);font-size:18px">라이프 RPG</h2>
+    <div class="small mute">업무 기록 아이디(예: 깐깐룡이)와 비밀번호</div>
+    <input id="id" autocomplete="username" placeholder="아이디"><input id="pw" type="password" autocomplete="current-password" placeholder="비밀번호">
+    <div class="err" id="err"></div><button id="go">들어가기</button></div>`;
+  document.getElementById('go').onclick = async () => {
+    const id = document.getElementById('id').value, pw = document.getElementById('pw').value, err = document.getElementById('err');
+    err.textContent = '';
+    if (!id || !pw) { err.textContent = '아이디와 비밀번호를 넣어 주세요'; return; }
+    try { const r = await rpc('rpg_login', {p_id: id, p_pw: pw});
+      if (r.error) { err.textContent = r.error; return; }
+      setToken(r.token); load();
+    } catch(e) { err.textContent = '인터넷을 확인해 주세요'; }
+  };
+}
+
+window.logout = () => { const t = token(); rpc('rpg_logout', {p_token: t}).catch(() => {}); setToken(''); ls.set('rpg_seen', null); loginView(); };
+window.appBack = () => { const o = document.querySelector('.ov'); if (o) { o.remove(); return true; } return false; };
+window.onNative = ev => { if (ev === 'resume') load(); };
+let y0 = null; // 아래로 당기면 새로고침
+addEventListener('touchstart', e => { y0 = scrollY === 0 ? e.touches[0].clientY : null; }, {passive:true});
+addEventListener('touchend', e => { if (y0 !== null && e.changedTouches[0].clientY - y0 > 90) { toast('새로 불러와요'); load(); } y0 = null; });
+load();
+</script>
+</body>
+</html>

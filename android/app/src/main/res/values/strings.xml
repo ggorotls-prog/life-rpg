@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 라이프 RPG 포인트 색(남색, 2026-11-12) -->
+    <color name="brand">#3B5B8C</color>
+    <string name="widget_desc">레벨과 오늘 기록한 칸</string>
+</resources>

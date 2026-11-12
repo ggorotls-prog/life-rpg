@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 육각형(능력치 6칸) 안에 별 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:strokeColor="#F6F5F1" android:strokeWidth="4" android:fillColor="#00000000"
+        android:pathData="M54,28L76.5,41L76.5,67L54,80L31.5,67L31.5,41Z" />
+    <path android:fillColor="#F2C94C"
+        android:pathData="M54,40L57.5,49.5L67.5,49.8L59.6,56L62.4,65.7L54,60L45.6,65.7L48.4,56L40.5,49.8L50.5,49.5Z" />
+</vector>
