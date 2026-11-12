@@ -77,6 +77,9 @@ select{width:100%;font:inherit;padding:11px;border:1px solid var(--line);border-
 .today2 .thead{display:flex;justify-content:space-between;font-size:13px;font-weight:700;color:#2f5d50;padding:10px 0 4px}
 .today2 .thead.warn{color:#b26a00}
 .today2 .perm{color:#2f5d50;display:block}
+.tbar{display:flex;gap:6px;margin:0 0 6px}
+.tbar b{flex:1;text-align:center;background:#f3f2ee;border-radius:8px;padding:7px 0;font-size:12px;color:var(--brand)}
+.tbar b.warn{color:#b26a00}.tbar b.ok{color:#2f5d50}
 .nowline{display:flex;align-items:center;gap:6px;color:#d62d1c;font-size:11px;font-weight:700;margin:2px 0}
 .nowline::after{content:"";flex:1;height:1px;background:#d62d1c}
 .reward{position:fixed;left:50%;top:38%;transform:translate(-50%,0);font-size:34px;font-weight:800;color:var(--ok);z-index:12;pointer-events:none;animation:rw 1.4s ease-out forwards}
@@ -400,8 +403,11 @@ function todayCard(h, res){
   const looseHtml = loose.length ? `<div class="thead" onclick="LOOSE_OPEN=!LOOSE_OPEN;town(RES,HOME)">적어 둔 일 <span>${loose.length} ${LOOSE_OPEN?'▲':'▼'}</span></div>` +
     (LOOSE_OPEN ? loose.map(r => `<div class="trow"><span class="tm"></span><button class="ck" onclick="doneTask('${r.id}', true)" aria-label="완료"></button><div class="tx">${esc(r.title)}</div></div>`).join('') : '') : '';
   const dw = '일월화수목금토'[new Date(D(t0)).getUTCDay()];
-  return `<div class="card today2"><h2>오늘 ${md(t0)} (${dw}) <span class="small" style="float:right">끝냄 ${h.tasks_done_today}</span></h2>${askedHtml}${calNote}${body}${looseHtml}
-    <div class="small mute" style="margin-top:8px;text-align:right" onclick="Native.openTodo ? Native.openTodo() : 0">새 할 일은 업무 기록에서 ›</div></div>`;
+  // 업무 기록 위젯의 핵심 줄(2026-11-12 룡): ＋ 할 일 · 맡기기 · 요청받은 일 · 확인할 일
+  const N = window.Native || {};
+  const bar = `<div class="tbar"><b onclick="${N.todoAdd ? 'Native.todoAdd()' : ''}">＋ 할 일</b><b onclick="${N.todoAssign ? 'Native.todoAssign()' : ''}">맡기기</b>
+    <b class="warn" onclick="${N.openTodo ? 'Native.openTodo()' : ''}">요청 ${asked.length}</b><b class="ok" onclick="${N.openTodo ? 'Native.openTodo()' : ''}">확인 ${h.to_check || 0}</b></div>`;
+  return `<div class="card today2"><h2>오늘 ${md(t0)} (${dw}) <span class="small" style="float:right">끝냄 ${h.tasks_done_today}</span></h2>${bar}${askedHtml}${calNote}${body}${looseHtml}</div>`;
 }
 window.doneTask = (id, mine) => {
   if (!mine) { window.Native && Native.openTodo && Native.openTodo(); return; }

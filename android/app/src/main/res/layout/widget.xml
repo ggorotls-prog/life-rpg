@@ -19,8 +19,16 @@
         <TextView android:id="@+id/bWallet" style="@style/WBtn" android:text="👛" />
         <TextView android:id="@+id/bFather" style="@style/WBtn" android:text="⛪" />
     </LinearLayout>
+    <!-- 업무 기록 위젯의 핵심 줄(2026-11-12 룡): ＋ 할 일 · 맡기기 · 요청받은 일 n · 확인할 일 n. 누르면 업무 기록 앱의 그 창 -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:layout_marginTop="6dp">
+        <TextView android:id="@+id/tPlus" style="@style/TBtn" android:text="＋ 할 일" android:textColor="#3B5B8C" />
+        <TextView android:id="@+id/tAssign" style="@style/TBtn" android:text="맡기기" android:textColor="#3B5B8C" />
+        <TextView android:id="@+id/tAsked" style="@style/TBtn" android:text="요청 0" android:textColor="#B26A00" />
+        <TextView android:id="@+id/tCheck" style="@style/TBtn" android:text="확인 0" android:textColor="#2F5D50" />
+    </LinearLayout>
     <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
-        android:layout_marginTop="6dp">
+        android:layout_marginTop="4dp">
         <ListView android:id="@+id/list" android:layout_width="match_parent" android:layout_height="match_parent"
             android:divider="#00000000" android:dividerHeight="0dp" />
         <TextView android:id="@+id/empty" android:layout_width="match_parent" android:layout_height="match_parent"

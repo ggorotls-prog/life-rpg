@@ -76,6 +76,8 @@ public class Widget extends AppWidgetProvider {
                     ? PendingIntent.getActivity(ctx, 72, wallet, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE)
                     : openApp(ctx, "wallet", 72));
             v.setOnClickPendingIntent(R.id.bFather, openApp(ctx, "father", 73));
+            // 업무 기록 줄: ＋ 할 일(업무 기록 할 일 적기 창) · 맡기기 · 요청받은 일 · 확인할 일(업무 기록 앱)
+            todoBar(ctx, v);
             // 목록
             Intent svc = new Intent(ctx, TodayService.class).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id);
             svc.setData(Uri.parse(svc.toUri(Intent.URI_INTENT_SCHEME)));
@@ -88,6 +90,32 @@ public class Widget extends AppWidgetProvider {
             m.updateAppWidget(id, v);
         }
         m.notifyAppWidgetViewDataChanged(ids, R.id.list);
+    }
+
+    // 업무 기록 위젯과 같은 버튼(2026-11-12 룡 「할 일 추가·맡기기·확인할 일·요청받은 일 개수」). 숫자는 TodayService가 받아 둔 것
+    static void todoBar(Context ctx, RemoteViews v) {
+        android.content.SharedPreferences p = ctx.getSharedPreferences("rpg-widget", Context.MODE_PRIVATE);
+        v.setTextViewText(R.id.tAsked, "요청 " + p.getInt("asked", 0));
+        v.setTextViewText(R.id.tCheck, "확인 " + p.getInt("check", 0));
+        Intent add = todoIntent(ctx, "QuickAddActivity", null);
+        Intent assign = todoIntent(ctx, "MainActivity", "assign");
+        Intent app = todoIntent(ctx, "MainActivity", null);
+        int f = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
+        if (add != null) v.setOnClickPendingIntent(R.id.tPlus, PendingIntent.getActivity(ctx, 80, add, f));
+        if (assign != null) v.setOnClickPendingIntent(R.id.tAssign, PendingIntent.getActivity(ctx, 81, assign, f));
+        if (app != null) {
+            v.setOnClickPendingIntent(R.id.tAsked, PendingIntent.getActivity(ctx, 82, app, f));
+            v.setOnClickPendingIntent(R.id.tCheck, PendingIntent.getActivity(ctx, 83, app, f));
+        }
+    }
+
+    // 업무 기록 앱(app.todohub)의 창. 없으면 null. flag = MainActivity에 켤 기능(assign = 맡기기 창)
+    static Intent todoIntent(Context ctx, String cls, String flag) {
+        try { ctx.getPackageManager().getPackageInfo("app.todohub", 0); } catch (Exception e) { return null; }
+        Intent i = new Intent().setClassName("app.todohub", "app.todohub." + cls)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        if (flag != null) i.putExtra(flag, true);
+        return i;
     }
 
     // 지갑 = 재정 기록 앱의 빠른 기록 창(재정 위젯 − 지출 버튼과 같은 창: 금액 → 가정/기업 → 항목 → 저장, 2026-11-12 룡 「재정기록 위젯이랑 동일하게」).

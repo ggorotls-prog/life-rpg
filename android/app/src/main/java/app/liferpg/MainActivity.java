@@ -266,6 +266,10 @@ public class MainActivity extends Activity {
             }
         }
 
+        // 업무 기록의 ＋ 할 일 적기 창 / 맡기기 창(업무 기록 위젯과 같은 창)
+        @JavascriptInterface public void todoAdd() { Intent i = Widget.todoIntent(MainActivity.this, "QuickAddActivity", null); if (i != null) open(i); else openTodo(); }
+        @JavascriptInterface public void todoAssign() { Intent i = Widget.todoIntent(MainActivity.this, "MainActivity", "assign"); if (i != null) open(i); else openTodo(); }
+
         // 업무 기록 앱을 연다(요청받은 일·새 할 일)
         @JavascriptInterface public void openTodo() {
             runOnUiThread(() -> {

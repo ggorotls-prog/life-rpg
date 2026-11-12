@@ -67,6 +67,7 @@ public class TodayService extends RemoteViewsService {
                         JSONObject o = new JSONObject(r.body);
                         me = o.optString("name");
                         tasks = o.optJSONArray("tasks");
+                        prefs().edit().putInt("check", o.optInt("to_check")).apply();
                         prefs().edit().putString("name", me).putString("tasks", tasks == null ? "[]" : tasks.toString()).apply();
                     }
                 } catch (Exception ignored) {}
@@ -120,6 +121,14 @@ public class TodayService extends RemoteViewsService {
                 }
             }
             day.sort((a, b) -> a.sort - b.sort);
+            // 머리 줄 숫자(요청받은 일 · 확인할 일)를 남기고 머리만 다시 그린다
+            prefs().edit().putInt("asked", asked.size()).apply();
+            try {
+                RemoteViews head = new RemoteViews(ctx.getPackageName(), R.layout.widget);
+                Widget.todoBar(ctx, head);
+                android.appwidget.AppWidgetManager m = android.appwidget.AppWidgetManager.getInstance(ctx);
+                m.partiallyUpdateAppWidget(m.getAppWidgetIds(new android.content.ComponentName(ctx, Widget.class)), head);
+            } catch (Exception ignored) {}
 
             List<Row> out = new ArrayList<>();
             if (!asked.isEmpty()) {
