@@ -4,3 +4,9 @@
 -- rpg_spirit_add(p_token, p_kind 감사|칭찬|SOC, p_text, p_target, p_learned)
 -- rpg_spirit_learned(p_token, p_id, p_learned)  SOC 배운 것 나중에
 -- rpg_diary_save(p_token, p_body)  하루 하나, 있으면 고침
+
+-- 통독 체크표·기도 시간(같은 날, 마이그레이션 rpg_bible_prayer). spirit_records 새 종류:
+--  통독 = 한 장에 한 줄(passage '창세기 3', record_date = 체크한 날, 풀면 지움). 시편·잠언은 표에서 뺌(룡) → 1,008장.
+--  기도 = 한 번에 한 줄(body '06:10~06:35 · 25분'). 시작 시각은 폰에만(앱을 꺼도 이어서 셈).
+--  둘 다 status 완료: 하루 마무리가 「완료 아닌 영성 기록」을 위키로 가져가는데 체크표 줄까지 가져가지 않게.
+-- rpg_bible(p_token) · rpg_bible_toggle(p_token, p_ref, p_on) · rpg_prayer_save(p_token, p_start, p_end, p_minutes) · rpg_prayer_week(p_token)

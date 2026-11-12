@@ -77,6 +77,11 @@ select{width:100%;font:inherit;padding:11px;border:1px solid var(--line);border-
 .today2 .thead{display:flex;justify-content:space-between;font-size:13px;font-weight:700;color:#2f5d50;padding:10px 0 4px}
 .today2 .thead.warn{color:#b26a00}
 .today2 .perm{color:#2f5d50;display:block}
+.bk{display:flex;justify-content:space-between;padding:9px 4px;border-bottom:1px solid #eeece6;font-size:14px}
+.bk .okc{color:var(--ok);font-weight:600}
+.chs{display:grid;grid-template-columns:repeat(8,1fr);gap:5px;padding:8px 0 10px}
+.chs b{text-align:center;padding:8px 0;border-radius:8px;background:#fff;border:1px solid var(--line);font-size:13px;font-weight:500}
+.chs b.on{background:var(--brand);color:#fff;border-color:var(--brand)}
 .tbar{display:flex;gap:6px;margin:0 0 6px}
 .tbar b{flex:1;text-align:center;background:#f3f2ee;border-radius:8px;padding:7px 0;font-size:12px;color:var(--brand)}
 .tbar b.warn{color:#b26a00}.tbar b.ok{color:#2f5d50}
@@ -307,7 +312,8 @@ function loginView(){
 
 window.logout = () => { const t = token(); rpc('rpg_logout', {p_token: t}).catch(() => {}); setToken(''); ls.set('rpg_seen', null); loginView(); };
 window.appBack = () => {
-  const o = document.querySelector('.ov, .sheet'); if (o) { o.remove(); return true; }
+  if (document.querySelector('.sheet')) { closeSheet(); return true; }
+  const o = document.querySelector('.ov'); if (o) { o.remove(); return true; }
   if (CUR !== 'town' && document.getElementById('nav').style.display !== 'none') { tab('town'); return true; }
   return false;
 };
@@ -422,10 +428,10 @@ function sheet(html){
   document.querySelectorAll('.sheet').forEach(s => s.remove());
   const s = document.createElement('div'); s.className = 'sheet';
   s.innerHTML = `<div class="in">${html}</div>`;
-  s.onclick = e => { if (e.target === s) s.remove(); };
+  s.onclick = e => { if (e.target === s) closeSheet(); };
   document.body.appendChild(s); return s;
 }
-const closeSheet = () => document.querySelectorAll('.sheet').forEach(s => s.remove());
+const closeSheet = () => { document.querySelectorAll('.sheet').forEach(s => s.remove()); if (CHANGED) { CHANGED = false; load(); } };
 async function save(fn, args, okMsg){
   try { const r = await rpc(fn, Object.assign({p_token: token()}, args));
     if (r && r.error) { toast(r.error); return r; }
@@ -522,15 +528,90 @@ window.openFather = async () => {
   const btn = (k, ic, sub) => `<div class="tile sm" data-k="${k}">${n(k) ? `<span class="got">${k==='묵상'||k==='일기' ? '✓' : n(k)}</span>` : ''}<div class="ic">${ic}</div><div class="nm">${k}</div><div class="st">${sub}</div></div>`;
   s.querySelector('.in').innerHTML = `<h3>⛪ 아빠 집</h3><div class="town3">
     ${btn('묵상','📖', n('묵상') ? '오늘 했어요' : '아직')}${btn('감사','🙏', n('감사') ? n('감사')+'개' : '적기')}${btn('칭찬','👏', n('칭찬') ? n('칭찬')+'개' : '적기')}
-    ${btn('SOC','🏫', n('SOC') ? n('SOC')+'개' : '적기')}${btn('일기','📝', n('일기') ? '이어 쓰기' : '쓰기')}</div>
-    <div class="small mute">기록은 영성 기록에도 똑같이 쌓여요</div>`;
+    ${btn('SOC','🏫', n('SOC') ? n('SOC')+'개' : '적기')}${btn('일기','📝', n('일기') ? '이어 쓰기' : '쓰기')}
+    ${btn('통독','📚', n('통독') ? '오늘 '+n('통독')+'장' : '체크표')}${btn('기도','🕊', prayStart() ? '기도 중' : n('기도') ? '오늘 '+prayMin()+'분' : '시작')}</div>
+    <div class="small mute">기록은 영성 기록과 같은 곳에 쌓여요</div>`;
   s.querySelectorAll('[data-k]').forEach(t => t.onclick = () => {
     const k = t.dataset.k;
     if (k === '묵상') return openMeditation();
     if (k === '일기') return openDiary();
+    if (k === '통독') return openBible();
+    if (k === '기도') return openPrayer();
     openFw(k);
   });
 };
+
+// 📚 통독 체크표(2026-11-12 룡: 시편·잠언 빼고 전체 장). 장을 누르면 체크/풀기, 체크한 날로 쌓인다
+const BIBLE = [['구약',[['창세기',50],['출애굽기',40],['레위기',27],['민수기',36],['신명기',34],['여호수아',24],['사사기',21],['룻기',4],['사무엘상',31],['사무엘하',24],
+  ['열왕기상',22],['열왕기하',25],['역대상',29],['역대하',36],['에스라',10],['느헤미야',13],['에스더',10],['욥기',42],['전도서',12],['아가',8],['이사야',66],['예레미야',52],
+  ['예레미야애가',5],['에스겔',48],['다니엘',12],['호세아',14],['요엘',3],['아모스',9],['오바댜',1],['요나',4],['미가',7],['나훔',3],['하박국',3],['스바냐',3],['학개',2],['스가랴',14],['말라기',4]]],
+  ['신약',[['마태복음',28],['마가복음',16],['누가복음',24],['요한복음',21],['사도행전',28],['로마서',16],['고린도전서',16],['고린도후서',13],['갈라디아서',6],['에베소서',6],
+  ['빌립보서',4],['골로새서',4],['데살로니가전서',5],['데살로니가후서',3],['디모데전서',6],['디모데후서',4],['디도서',3],['빌레몬서',1],['히브리서',13],['야고보서',5],
+  ['베드로전서',5],['베드로후서',3],['요한일서',5],['요한이서',1],['요한삼서',1],['유다서',1],['요한계시록',22]]]];
+const BIBLE_ALL = BIBLE.reduce((s, [, bs]) => s + bs.reduce((t, b) => t + b[1], 0), 0);
+let BREAD = null, BOPEN = ls.get('rpg_bopen', null);
+async function openBible(){
+  const s = sheet(`<h3>📚 통독</h3><div class="mute small">불러오는 중…</div>`);
+  try { const r = await rpc('rpg_bible', {p_token: token()}); BREAD = new Set(r.read); } catch(e) { s.querySelector('.in').innerHTML = '<h3>📚 통독</h3><div>인터넷을 확인해 주세요</div>'; return; }
+  const draw = () => {
+    const pct = Math.round(BREAD.size / BIBLE_ALL * 1000) / 10;
+    let h = `<h3>📚 통독 <span class="small mute" style="float:right">${BREAD.size} / ${BIBLE_ALL}장 · ${pct}%</span></h3>
+      <div class="bar" style="margin-bottom:10px"><i style="width:${pct}%"></i></div><div class="small mute" style="margin-bottom:6px">시편·잠언은 빼고 · 장을 누르면 체크</div>`;
+    for (const [part, books] of BIBLE) {
+      h += `<h2 style="margin:12px 0 4px">${part}</h2>`;
+      for (const [b, n] of books) {
+        let done = 0; for (let c = 1; c <= n; c++) if (BREAD.has(b+' '+c)) done++;
+        h += `<div class="bk" data-b="${b}"><span>${b}</span><span class="small ${done===n?'okc':'mute'}">${done===n ? '✓ ' : ''}${done}/${n}</span></div>`;
+        if (BOPEN === b) { h += '<div class="chs">'; for (let c = 1; c <= n; c++) h += `<b class="${BREAD.has(b+' '+c)?'on':''}" data-c="${c}">${c}</b>`; h += '</div>'; }
+      }
+    }
+    const top = s.querySelector('.in').scrollTop;
+    s.querySelector('.in').innerHTML = h;
+    s.querySelector('.in').scrollTop = top;
+    s.querySelectorAll('.bk').forEach(r => r.onclick = () => { BOPEN = BOPEN === r.dataset.b ? null : r.dataset.b; ls.set('rpg_bopen', BOPEN); draw(); });
+    s.querySelectorAll('.chs b').forEach(x => x.onclick = async () => {
+      const ref = BOPEN + ' ' + x.dataset.c, on = !BREAD.has(ref);
+      on ? BREAD.add(ref) : BREAD.delete(ref); draw();
+      try { const r = await rpc('rpg_bible_toggle', {p_token: token(), p_ref: ref, p_on: on}); if (r.error) throw 0; }
+      catch(e) { on ? BREAD.delete(ref) : BREAD.add(ref); draw(); toast('저장하지 못했어요'); return; }
+      CHANGED = true;
+    });
+  };
+  draw();
+}
+let CHANGED = false; // 통독 체크를 바꿨으면 창을 닫을 때 다시 불러온다(+EXP)
+
+// 🕊 기도 시작·끝(2026-11-12 룡). 시작 시각은 이 폰에 둔다(앱을 꺼도 이어서 셈)
+const prayStart = () => +(ls.get('rpg_pray_start', 0) || 0);
+const prayMin = () => spOf('기도').reduce((s, e) => s + (+((e.body||'').match(/· (\d+)분/)||[])[1] || 0), 0);
+const hhmm = ms => { const d = new Date(ms + 9*3600e3); return String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0'); };
+let PTIMER = null;
+async function openPrayer(){
+  clearInterval(PTIMER);
+  let week = null; try { week = (await rpc('rpg_prayer_week', {p_token: token()})).week; } catch(e) {}
+  const st = prayStart();
+  const today = spOf('기도').map(e => `<div class="task" style="display:block">${esc(e.body||'')}</div>`).join('') || '<span class="mute">아직 없어요</span>';
+  const s = sheet(`<h3>🕊 기도</h3>
+    <div id="clk" style="font-size:46px;font-weight:800;text-align:center;color:var(--brand);margin:8px 0">${st ? '' : '00:00'}</div>
+    <div class="small mute" style="text-align:center;margin-bottom:12px">${st ? hhmm(st)+'에 시작' : '오늘 '+prayMin()+'분'+(week !== null ? ' · 이번 주 '+week+'분' : '')}</div>
+    ${st ? `<button id="end">기도 끝</button><button class="ghost" id="cancel" style="margin-top:8px">취소(적지 않음)</button>` : `<button id="start">기도 시작</button>`}
+    <h2 style="margin-top:16px">오늘 기도</h2><div class="small">${today}</div>`);
+  if (st) {
+    const tick = () => { const sec = Math.floor((Date.now() - st)/1000); const el = s.querySelector('#clk');
+      if (!el) return clearInterval(PTIMER); el.textContent = String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0'); };
+    tick(); PTIMER = setInterval(tick, 1000);
+    s.querySelector('#end').onclick = async () => {
+      const end = Date.now(), min = Math.max(1, Math.round((end - st)/60000));
+      try { const r = await rpc('rpg_prayer_save', {p_token: token(), p_start: hhmm(st), p_end: hhmm(end), p_minutes: min});
+        if (r.error) { toast(r.error); return; }
+        ls.set('rpg_pray_start', 0); clearInterval(PTIMER); await spiritDay(); toast('기도 '+min+'분 적었어요'); closeSheet(); load();
+      } catch(e) { toast('저장하지 못했어요. 인터넷을 확인해 주세요'); }
+    };
+    s.querySelector('#cancel').onclick = () => { ls.set('rpg_pray_start', 0); clearInterval(PTIMER); closeSheet(); toast('기도 시간을 지웠어요'); };
+  } else {
+    s.querySelector('#start').onclick = () => { ls.set('rpg_pray_start', Date.now()); openPrayer(); };
+  }
+}
 
 // 📖 묵상
 async function openMeditation(){
