@@ -92,3 +92,6 @@ end $$;
 
 revoke all on function rpg_home(text), rpg_wake(text,int,text), rpg_bed(text), rpg_task_done(text,uuid), rpg_fin_add(text,uuid,bigint,text) from public;
 grant execute on function rpg_home(text), rpg_wake(text,int,text), rpg_bed(text), rpg_task_done(text,uuid), rpg_fin_add(text,uuid,bigint,text) to anon;
+
+-- (같은 날 고침) rpg_home의 tasks = 내 할 일 전부(status 할 일, assignee = 나). 필드: id·title·due·company·important·remind(한국 시각 글자)·requester(맡긴 사람).
+-- 첫 화면을 업무 기록 캘린더 위젯처럼 「오늘 일정 + 할 일」로 만들려고(2026-11-12 룡). 나누기는 화면이 한다. 실제 정의는 DB 마이그레이션 rpg_home_all_tasks.

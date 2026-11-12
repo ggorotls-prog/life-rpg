@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- 밤 9시 30분 알림, 재부팅 뒤 다시 걸기 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 첫 화면 「오늘」: 폰에 들어와 있는 구글 캘린더 일정 읽기(업무 기록 캘린더 위젯과 같음) -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- 스스로 업데이트(기록 앱과 같은 방식) -->
@@ -14,6 +16,7 @@
     <!-- 아빠 집: 영성 기록 앱을 열려면 그 앱이 보여야 한다(안드로이드 11+) -->
     <queries>
         <package android:name="app.personalrecord" />
+        <package android:name="app.todohub" />
     </queries>
 
     <application

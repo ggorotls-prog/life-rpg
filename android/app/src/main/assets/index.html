@@ -64,6 +64,21 @@ select{width:100%;font:inherit;padding:11px;border:1px solid var(--line);border-
 .task{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px}
 .task .ck{width:30px;height:30px;border-radius:50%;border:2px solid var(--brand);flex:none;background:#fff}
 .task .tt{flex:1;font-size:14px}
+.town3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+.tile.sm{min-height:0;padding:10px 6px}.tile.sm .ic{font-size:30px}.tile.sm .nm{font-size:14px;margin-top:2px}.tile.sm .st{font-size:11px}
+.today2 .trow{display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid #f0eee8;font-size:14px}
+.today2 .trow:last-child{border:0}
+.today2 .tm{width:40px;flex:none;color:var(--mute);font-size:12px;padding-top:2px}
+.today2 .tx{flex:1;min-width:0;word-break:keep-all}
+.today2 .ck{width:22px;height:22px;border-radius:50%;border:2px solid var(--brand);background:#fff;padding:0;flex:none}
+.today2 .evbar{width:4px;align-self:stretch;background:#3b6fb6;border-radius:2px;flex:none}
+.today2 .faded{color:#9a9890}.today2 .faded .evbar{background:#cfcdc5}
+.today2 .red{color:#d62d1c!important}
+.today2 .thead{display:flex;justify-content:space-between;font-size:13px;font-weight:700;color:#2f5d50;padding:10px 0 4px}
+.today2 .thead.warn{color:#b26a00}
+.today2 .perm{color:#2f5d50;display:block}
+.nowline{display:flex;align-items:center;gap:6px;color:#d62d1c;font-size:11px;font-weight:700;margin:2px 0}
+.nowline::after{content:"";flex:1;height:1px;background:#d62d1c}
 .reward{position:fixed;left:50%;top:38%;transform:translate(-50%,0);font-size:34px;font-weight:800;color:var(--ok);z-index:12;pointer-events:none;animation:rw 1.4s ease-out forwards}
 @keyframes rw{0%{opacity:0;transform:translate(-50%,20px) scale(.8)}20%{opacity:1;transform:translate(-50%,0) scale(1.1)}100%{opacity:0;transform:translate(-50%,-60px) scale(1)}}
 </style>
@@ -321,16 +336,74 @@ function town(res, h){
   document.getElementById('town').innerHTML = `
     <div class="mini"><span class="lv">Lv ${cl}</span><div class="bar"><i style="width:${Math.round(cp*100)}%"></i></div>
       <span class="small mute">오늘 +${res.todayXp}</span></div>
-    <div class="town">
-      <div class="tile" onclick="openHome()">${got('건강')}<div class="ic">🏠</div><div class="nm">집</div><div class="st">${homeSt}</div></div>
-      <div class="tile" onclick="openWallet()">${got('재정')}<div class="ic">👛</div><div class="nm">지갑</div><div class="st">${h.fin_today ? '오늘 내가 '+h.fin_today+'건' : '돈 쓰거나 받았을 때'}</div></div>
-      <div class="tile" onclick="openQuest()">${got('일')}<div class="ic">📜</div><div class="nm">퀘스트</div><div class="st">남은 ${h.tasks.length} · 오늘 끝냄 ${h.tasks_done_today}</div></div>
-      <div class="tile" onclick="openFather()">${got('영성')}<div class="ic">⛪</div><div class="nm">아빠 집</div><div class="st">${sp.length ? sp.join(' · ')+' ✓' : '아직'}</div></div>
+    <div class="town3">
+      <div class="tile sm" onclick="openHome()">${got('건강')}<div class="ic">🏠</div><div class="nm">집</div><div class="st">${homeSt}</div></div>
+      <div class="tile sm" onclick="openWallet()">${got('재정')}<div class="ic">👛</div><div class="nm">지갑</div><div class="st">${h.fin_today ? '오늘 '+h.fin_today+'건' : '돈 썼을 때'}</div></div>
+      <div class="tile sm" onclick="openFather()">${got('영성')}<div class="ic">⛪</div><div class="nm">아빠 집</div><div class="st">${sp.length ? sp.join('·')+' ✓' : '아직'}</div></div>
     </div>
+    ${todayCard(h, res)}
     <div class="card" style="margin-top:12px"><h2>오늘 나아간 것</h2><div class="small">${
       AREAS.filter(a => res.areas[a].todayItems).map(a => '✓ '+a+' · '+esc(itemsText(res.areas[a].todayItems))).join('<br>') || '<span class="mute">아직 없어요. 아이콘을 눌러 시작해요</span>'}</div></div>
     <div class="small mute" style="text-align:center">관계(통화·카톡)는 자동으로 들어와요</div>`;
 }
+
+// ===== 오늘: 일정 + 할 일 (업무 기록 캘린더 위젯과 같은 나누기, 2026-11-12 룡 「기본 화면은 내 일정과 할 일」) =====
+// 맨 위 요청받은 일 → 오늘 줄(지난 할 일 · 하루 종일 · 시간 순, 지금 줄) → 적어 둔 일(날짜 없는 내 일, 접힘)
+let LOOSE_OPEN = false;
+const hm = ms => { const d = new Date(ms + 9*3600e3); return String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0'); };
+function tagOf(name){ for (const t of ['룡','월','영']) if ((name||'').includes(t)) return t; return null; }
+function others(title, tag){ if (!tag) return false; const c = title.indexOf(' - '); if (c <= 0 || c > 12) return false; const w = title.slice(0,c); return !w.includes(tag) && !w.includes('가족') && !w.includes('모두'); }
+function todayCard(h, res){
+  const t0 = h.today, me = h.name, rows = [], asked = [], loose = [];
+  let calNote = '';
+  if (window.Native && Native.calendar) {
+    const raw = Native.calendar(t0);
+    if (raw === null || raw === undefined) calNote = `<div class="trow perm" onclick="Native.askCalendar()">📅 눌러서 캘린더 보기를 허용해 주세요<div class="small mute">허용하면 오늘 일정이 여기에 같이 보여요</div></div>`;
+    else { const from = D(t0) - 9*3600e3, tag = tagOf(me);
+      for (const e of JSON.parse(raw)) {
+        const r = {kind:'event', title: e.title || '(제목 없음)', id: e.id, begin: e.begin, end: e.end, faded: others(e.title||'', tag)};
+        if (e.allDay) { r.time = '하루'; r.sort = -1; }
+        else { r.time = e.begin < from ? '이어짐' : hm(e.begin); r.sort = e.begin < from ? -1 : Math.round((e.begin - from)/60000);
+               if (e.end <= from + 864e5) r.sub = '~' + hm(e.end); }
+        rows.push(r);
+      } }
+  }
+  for (const t of h.tasks) {
+    const due = t.due || '', remind = t.remind || '', rday = remind.slice(0,10);
+    const r = {kind:'task', id: t.id, title: (t.important ? '★ ' : '') + t.title, mine: t.requester === me, company: t.company};
+    if (!r.mine) { const w = due || rday; r.sub = (t.requester ? t.requester+' 요청' : '') + (w ? ' · '+md(w)+'까지' : ''); r.late = w && w < t0; asked.push(r); continue; }
+    if (!due && !rday) { loose.push(r); continue; }
+    const late = due && due < t0, hit = late || due === t0 || rday === t0 || (!due && rday < t0);
+    if (!hit) continue;
+    if (rday === t0 && remind.length >= 16) { r.time = remind.slice(11,16); r.sort = +r.time.slice(0,2)*60 + +r.time.slice(3,5); r.sub = '🔔' + (due > t0 ? ' · '+md(due)+'까지' : ''); }
+    else if (late) { r.time = '지남'; r.sort = -2; r.sub = md(due)+'까지'; r.late = true; }
+    else { r.time = '하루'; r.sort = -1; }
+    rows.push(r);
+  }
+  rows.sort((a,b) => a.sort - b.sort);
+  const nowMin = (() => { const d = new Date(Date.now() + 9*3600e3); return d.getUTCHours()*60 + d.getUTCMinutes(); })();
+  const line = r => r.kind === 'event'
+    ? `<div class="trow ev${r.faded?' faded':''}" onclick="Native.openEvent('${r.id}','${r.begin}','${r.end}')"><span class="tm">${r.time}</span><span class="evbar"></span><div class="tx">${esc(r.title)}${r.sub?`<div class="small mute">${r.sub}</div>`:''}</div></div>`
+    : `<div class="trow"><span class="tm${r.late?' red':''}">${r.time||''}</span><button class="ck" onclick="doneTask('${r.id}', ${r.mine})" aria-label="완료"></button><div class="tx">${esc(r.title)}${r.sub||r.company?`<div class="small ${r.late?'red':'mute'}">${[r.sub, r.company].filter(Boolean).map(esc).join(' · ')}</div>`:''}</div></div>`;
+  let body = '', placed = false; const timed = rows.some(r => r.sort >= 0);
+  for (const r of rows) { if (timed && !placed && r.sort > nowMin) { body += '<div class="nowline"><span>지금</span></div>'; placed = true; } body += line(r); }
+  if (timed && !placed) body += '<div class="nowline"><span>지금</span></div>';
+  if (!rows.length) body += '<div class="small mute" style="padding:8px 0">오늘은 비어 있어요</div>';
+  const askedHtml = asked.length ? `<div class="thead warn">요청받은 일 <span>${asked.length}</span></div>` + asked.map(r =>
+    `<div class="trow"><span class="tm"></span><button class="ck" onclick="Native.openTodo ? Native.openTodo() : 0" aria-label="업무 기록에서"></button><div class="tx">${esc(r.title)}<div class="small ${r.late?'red':'mute'}">${esc(r.sub)}</div></div></div>`).join('') : '';
+  const looseHtml = loose.length ? `<div class="thead" onclick="LOOSE_OPEN=!LOOSE_OPEN;town(RES,HOME)">적어 둔 일 <span>${loose.length} ${LOOSE_OPEN?'▲':'▼'}</span></div>` +
+    (LOOSE_OPEN ? loose.map(r => `<div class="trow"><span class="tm"></span><button class="ck" onclick="doneTask('${r.id}', true)" aria-label="완료"></button><div class="tx">${esc(r.title)}</div></div>`).join('') : '') : '';
+  const dw = '일월화수목금토'[new Date(D(t0)).getUTCDay()];
+  return `<div class="card today2"><h2>오늘 ${md(t0)} (${dw}) <span class="small" style="float:right">끝냄 ${h.tasks_done_today}</span></h2>${askedHtml}${calNote}${body}${looseHtml}
+    <div class="small mute" style="margin-top:8px;text-align:right" onclick="Native.openTodo ? Native.openTodo() : 0">새 할 일은 업무 기록에서 ›</div></div>`;
+}
+window.doneTask = (id, mine) => {
+  if (!mine) { window.Native && Native.openTodo && Native.openTodo(); return; }
+  const t = HOME.tasks.find(x => x.id === id);
+  const s = sheet(`<h3>완료할까요?</h3><div>${esc(t ? t.title : '')}</div><div style="display:flex;gap:8px;margin-top:14px"><button class="ghost" id="no">아니요</button><button id="yes">완료 +EXP</button></div>`);
+  s.querySelector('#no').onclick = closeSheet;
+  s.querySelector('#yes').onclick = () => save('rpg_task_done', {p_id: id}, '퀘스트 완료');
+};
 
 function sheet(html){
   document.querySelectorAll('.sheet').forEach(s => s.remove());

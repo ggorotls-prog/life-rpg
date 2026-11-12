@@ -108,6 +108,12 @@ public class MainActivity extends Activity {
         });
     }
 
+    @Override
+    public void onRequestPermissionsResult(int code, String[] perms, int[] res) {
+        super.onRequestPermissionsResult(code, perms, res);
+        js("window.onNative && onNative('resume')");
+    }
+
     private void js(String code) {
         runOnUiThread(() -> { if (web != null) web.evaluateJavascript(code, null); });
     }
@@ -150,6 +156,66 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void openBattery() {
             open(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName())));
         }
+        // 오늘 일정: 폰 캘린더(구글 캘린더가 이미 들어와 있음). 공휴일·생일·취소는 뺀다. 권한 없으면 null
+        @JavascriptInterface public String calendar(String day) {
+            if (checkSelfPermission(android.Manifest.permission.READ_CALENDAR) != android.content.pm.PackageManager.PERMISSION_GRANTED) return null;
+            org.json.JSONArray out = new org.json.JSONArray();
+            try {
+                java.time.ZoneId z = java.time.ZoneId.of("Asia/Seoul");
+                java.time.LocalDate d = java.time.LocalDate.parse(day);
+                long from = d.atStartOfDay(z).toInstant().toEpochMilli(), to = d.plusDays(1).atStartOfDay(z).toInstant().toEpochMilli();
+                Uri.Builder b = android.provider.CalendarContract.Instances.CONTENT_URI.buildUpon();
+                android.content.ContentUris.appendId(b, from);
+                android.content.ContentUris.appendId(b, to - 1);
+                String[] cols = {android.provider.CalendarContract.Instances.EVENT_ID, android.provider.CalendarContract.Instances.TITLE,
+                        android.provider.CalendarContract.Instances.BEGIN, android.provider.CalendarContract.Instances.END,
+                        android.provider.CalendarContract.Instances.ALL_DAY, android.provider.CalendarContract.Instances.CALENDAR_DISPLAY_NAME,
+                        android.provider.CalendarContract.Instances.STATUS};
+                try (android.database.Cursor c = getContentResolver().query(b.build(), cols,
+                        android.provider.CalendarContract.Instances.VISIBLE + "=1", null, android.provider.CalendarContract.Instances.BEGIN + " ASC")) {
+                    while (c != null && c.moveToNext()) {
+                        String cal = c.getString(5) == null ? "" : c.getString(5);
+                        if (cal.contains("휴일") || cal.contains("Holiday") || cal.contains("생일") || cal.contains("Birthday")) continue;
+                        if (c.getInt(6) == android.provider.CalendarContract.Events.STATUS_CANCELED) continue;
+                        long bg = c.getLong(2), en = c.getLong(3);
+                        boolean allDay = c.getInt(4) == 1;
+                        if (allDay) {
+                            // 하루 종일 일정은 UTC 자정 기준(업무 기록 위젯과 같은 처리)
+                            java.time.LocalDate bd = java.time.Instant.ofEpochMilli(bg).atZone(java.time.ZoneOffset.UTC).toLocalDate();
+                            java.time.LocalDate ed = java.time.Instant.ofEpochMilli(en).atZone(java.time.ZoneOffset.UTC).toLocalDate();
+                            if (d.isBefore(bd) || !d.isBefore(ed)) continue;
+                        } else if (en <= from) continue;
+                        out.put(new JSONObject().put("id", c.getLong(0)).put("title", c.getString(1) == null ? "" : c.getString(1))
+                                .put("begin", bg).put("end", en).put("allDay", allDay));
+                    }
+                }
+            } catch (Exception e) { return "[]"; }
+            return out.toString();
+        }
+
+        @JavascriptInterface public void askCalendar() {
+            runOnUiThread(() -> requestPermissions(new String[]{android.Manifest.permission.READ_CALENDAR}, 3));
+        }
+
+        // 일정을 누르면 구글 캘린더 앱에서 그 일정
+        @JavascriptInterface public void openEvent(String id, String begin, String end) {
+            try {
+                Intent i = new Intent(Intent.ACTION_VIEW, android.content.ContentUris.withAppendedId(android.provider.CalendarContract.Events.CONTENT_URI, Long.parseLong(id)))
+                        .putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, Long.parseLong(begin))
+                        .putExtra(android.provider.CalendarContract.EXTRA_EVENT_END_TIME, Long.parseLong(end));
+                open(i);
+            } catch (Exception ignored) {}
+        }
+
+        // 업무 기록 앱을 연다(요청받은 일·새 할 일)
+        @JavascriptInterface public void openTodo() {
+            runOnUiThread(() -> {
+                Intent i = getPackageManager().getLaunchIntentForPackage("app.todohub");
+                if (i == null) i = new Intent(Intent.ACTION_VIEW, Uri.parse("https://todo--hub.vercel.app"));
+                try { startActivity(i); } catch (Exception ignored) {}
+            });
+        }
+
         // 아빠 집: 영성 기록 앱을 연다(없으면 사이트)
         @JavascriptInterface public void openApp(String pkg, String url) {
             runOnUiThread(() -> {
