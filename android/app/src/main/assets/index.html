@@ -447,7 +447,12 @@ window.openHome = () => {
 };
 
 // 👛 지갑 = 재정 기록(오늘 날짜로 한 줄). 자주 쓴 항목이 먼저
+// 재정 기록 앱이 있으면 그 앱의 빠른 기록 창(재정 위젯과 같은 창)을 연다. 돌아오면 다시 불러와 +EXP. 없을 때만 아래 창
 window.openWallet = () => {
+  if (window.Native && Native.openWallet && Native.openWallet()) return;
+  openWalletHere();
+};
+window.openWalletHere = () => {
   let kind = '지출', pick = null;
   const label = i => [i.middle, i.detail].filter(Boolean).join(' · ') + (i.area ? ' ('+i.area+')' : '');
   const bookName = id => (HOME.books.find(b => b.id === id) || {}).name || '';

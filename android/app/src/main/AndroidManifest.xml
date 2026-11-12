@@ -17,6 +17,7 @@
     <queries>
         <package android:name="app.personalrecord" />
         <package android:name="app.todohub" />
+        <package android:name="app.faithbudget" />
     </queries>
 
     <application

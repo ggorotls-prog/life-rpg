@@ -227,6 +227,14 @@ public class MainActivity extends Activity {
             } catch (Exception ignored) {}
         }
 
+        // 지갑: 재정 기록 앱의 빠른 기록 창(재정 위젯과 똑같은 창)을 연다. 재정 기록 앱이 없으면 false → 화면이 자기 창을 띄움
+        @JavascriptInterface public boolean openWallet() {
+            Intent i = Widget.walletIntent(MainActivity.this);
+            if (i == null) return false;
+            open(i);
+            return true;
+        }
+
         // 업무 기록 앱을 연다(요청받은 일·새 할 일)
         @JavascriptInterface public void openTodo() {
             runOnUiThread(() -> {

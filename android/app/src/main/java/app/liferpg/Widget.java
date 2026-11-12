@@ -71,7 +71,10 @@ public class Widget extends AppWidgetProvider {
             // 버튼: 앱을 열고 그 창
             v.setOnClickPendingIntent(R.id.head, openApp(ctx, null, 70));
             v.setOnClickPendingIntent(R.id.bHome, openApp(ctx, "home", 71));
-            v.setOnClickPendingIntent(R.id.bWallet, openApp(ctx, "wallet", 72));
+            Intent wallet = walletIntent(ctx);
+            v.setOnClickPendingIntent(R.id.bWallet, wallet != null
+                    ? PendingIntent.getActivity(ctx, 72, wallet, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE)
+                    : openApp(ctx, "wallet", 72));
             v.setOnClickPendingIntent(R.id.bFather, openApp(ctx, "father", 73));
             // 목록
             Intent svc = new Intent(ctx, TodayService.class).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id);
@@ -85,6 +88,14 @@ public class Widget extends AppWidgetProvider {
             m.updateAppWidget(id, v);
         }
         m.notifyAppWidgetViewDataChanged(ids, R.id.list);
+    }
+
+    // 지갑 = 재정 기록 앱의 빠른 기록 창(재정 위젯 − 지출 버튼과 같은 창: 금액 → 가정/기업 → 항목 → 저장, 2026-11-12 룡 「재정기록 위젯이랑 동일하게」).
+    // 재정 기록 앱이 깔려 있지 않으면 null.
+    static Intent walletIntent(Context ctx) {
+        try { ctx.getPackageManager().getPackageInfo("app.faithbudget", 0); } catch (Exception e) { return null; }
+        return new Intent().setClassName("app.faithbudget", "app.faithbudget.QuickActivity")
+                .putExtra("kind", "지출").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
     }
 
     static PendingIntent openApp(Context ctx, String what, int code) {
