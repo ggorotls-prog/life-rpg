@@ -44,6 +44,15 @@
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_info" />
         </receiver>
 
+        <!-- 위젯 목록(오늘 일정 + 할 일) -->
+        <service android:name=".TodayService" android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+
+        <!-- 위젯을 눌렀을 때: 완료 확인 창 · 캘린더 · 업무 기록 -->
+        <activity android:name=".WidgetAction" android:exported="false"
+            android:theme="@style/Clear" android:excludeFromRecents="true"
+            android:taskAffinity="app.liferpg.action" android:noHistory="true" />
+
         <!-- 밤 9시 30분 알림 · 재부팅·업데이트 뒤 다시 걸기 -->
         <receiver android:name=".Daily" android:exported="false">
             <intent-filter>

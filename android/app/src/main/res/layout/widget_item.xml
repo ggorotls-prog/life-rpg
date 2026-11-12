@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 위젯 한 줄: 칸 제목 / 지금 줄 / 일정·할 일 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+    <LinearLayout android:id="@+id/wHead" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:paddingTop="8dp" android:paddingBottom="2dp">
+        <TextView android:id="@+id/wHeadText" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+            android:textSize="12sp" android:textStyle="bold" />
+        <TextView android:id="@+id/wHeadCount" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textSize="12sp" android:textStyle="bold" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/wNow" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical" android:paddingTop="2dp" android:paddingBottom="2dp">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="지금"
+            android:textSize="10sp" android:textStyle="bold" android:textColor="#D62D1C" />
+        <View android:layout_width="0dp" android:layout_weight="1" android:layout_height="1dp" android:layout_marginStart="6dp"
+            android:background="#D62D1C" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/wBody" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:paddingTop="5dp" android:paddingBottom="5dp" android:gravity="center_vertical">
+        <TextView android:id="@+id/wTime" android:layout_width="40dp" android:layout_height="wrap_content"
+            android:textSize="11sp" android:textColor="#6B6A64" />
+        <View android:id="@+id/wBar" android:layout_width="3dp" android:layout_height="match_parent" android:layout_marginEnd="7dp"
+            android:background="#3B6FB6" />
+        <TextView android:id="@+id/wCheck" android:layout_width="26dp" android:layout_height="26dp" android:gravity="center"
+            android:text="○" android:textSize="18sp" android:textColor="#3B5B8C" android:layout_marginEnd="5dp" />
+        <LinearLayout android:id="@+id/wText" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+            android:orientation="vertical">
+            <TextView android:id="@+id/wTitle" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:textSize="13sp" android:textColor="#1F1F1D" android:maxLines="2" android:ellipsize="end" />
+            <TextView android:id="@+id/wSub" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:textSize="11sp" android:textColor="#6B6A64" android:maxLines="1" android:ellipsize="end" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

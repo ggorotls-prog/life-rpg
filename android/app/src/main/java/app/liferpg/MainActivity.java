@@ -41,7 +41,7 @@ public class MainActivity extends Activity {
         s.setTextZoom(100);
         web.addJavascriptInterface(new Bridge(), "Native");
         web.setWebViewClient(new WebViewClient() {
-            @Override public void onPageFinished(WebView v, String url) { loaded = true; }
+            @Override public void onPageFinished(WebView v, String url) { loaded = true; openFromIntent(); }
             @Override public boolean shouldOverrideUrlLoading(WebView v, String url) { return true; }
             @Override public boolean onRenderProcessGone(WebView v, android.webkit.RenderProcessGoneDetail d) {
                 try {
@@ -73,8 +73,28 @@ public class MainActivity extends Activity {
         }
         Daily.schedule(this);
         Daily.Job.schedule(this);
+        take(getIntent());
         if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
+    }
+
+    // 위젯 버튼(🏠 집 · 👛 지갑 · ⛪ 아빠 집)으로 열렸으면 그 창을 연다
+    static final String EXTRA_OPEN = "open";
+    private String openWhat;
+
+    private void take(Intent i) { if (i != null && i.getStringExtra(EXTRA_OPEN) != null) openWhat = i.getStringExtra(EXTRA_OPEN); }
+
+    private void openFromIntent() {
+        if (openWhat == null || !loaded) return;
+        js("window.openFrom && openFrom(" + JSONObject.quote(openWhat) + ")");
+        openWhat = null;
+    }
+
+    @Override
+    protected void onNewIntent(Intent i) {
+        super.onNewIntent(i);
+        take(i);
+        openFromIntent();
     }
 
     @Override

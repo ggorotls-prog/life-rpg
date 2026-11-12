@@ -1,12 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Cell">
-        <item name="android:layout_width">0dp</item>
-        <item name="android:layout_weight">1</item>
-        <item name="android:layout_height">wrap_content</item>
+    <style name="WBtn">
+        <item name="android:layout_width">34dp</item>
+        <item name="android:layout_height">34dp</item>
         <item name="android:gravity">center</item>
-        <item name="android:textSize">14sp</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:textColor">#C9C6BD</item>
+        <item name="android:textSize">19sp</item>
+        <item name="android:background">@drawable/wbtn_bg</item>
+        <item name="android:layout_marginStart">3dp</item>
+    </style>
+    <!-- 위젯 누름 처리 창: 투명 -->
+    <style name="Clear" parent="@android:style/Theme.DeviceDefault.Light.Dialog.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
     </style>
 </resources>

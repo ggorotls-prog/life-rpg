@@ -342,10 +342,16 @@ function town(res, h){
       <div class="tile sm" onclick="openFather()">${got('영성')}<div class="ic">⛪</div><div class="nm">아빠 집</div><div class="st">${sp.length ? sp.join('·')+' ✓' : '아직'}</div></div>
     </div>
     ${todayCard(h, res)}
-    <div class="card" style="margin-top:12px"><h2>오늘 나아간 것</h2><div class="small">${
-      AREAS.filter(a => res.areas[a].todayItems).map(a => '✓ '+a+' · '+esc(itemsText(res.areas[a].todayItems))).join('<br>') || '<span class="mute">아직 없어요. 아이콘을 눌러 시작해요</span>'}</div></div>
     <div class="small mute" style="text-align:center">관계(통화·카톡)는 자동으로 들어와요</div>`;
+  if (PENDING) { const p = PENDING; PENDING = null; openFrom(p); }
 }
+// 위젯 버튼(🏠 👛 ⛪)으로 열렸을 때: 불러온 뒤 그 창을 연다
+let PENDING = null;
+window.openFrom = k => {
+  if (!HOME) { PENDING = k; return; }
+  tab('town');
+  ({home: openHome, wallet: openWallet, father: openFather})[k]?.();
+};
 
 // ===== 오늘: 일정 + 할 일 (업무 기록 캘린더 위젯과 같은 나누기, 2026-11-12 룡 「기본 화면은 내 일정과 할 일」) =====
 // 맨 위 요청받은 일 → 오늘 줄(지난 할 일 · 하루 종일 · 시간 순, 지금 줄) → 적어 둔 일(날짜 없는 내 일, 접힘)

@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.net.Uri;
 import android.widget.RemoteViews;
 
 import org.json.JSONArray;
@@ -13,11 +14,10 @@ import org.json.JSONObject;
 
 import java.util.Set;
 
-// 홈 화면 위젯(본체, 설계안 2판): 캐릭터 레벨 · 진행 막대 · 오늘 6칸(기록됨 / 아직 / 준비 중).
-// 누르면 앱이 열린다. 레벨은 앱을 열 때 화면이 계산해 넘겨 주고, 오늘 칸은 1시간마다 서버에서 고친다.
+// 홈 화면 위젯 = 마을 첫 화면을 줄인 것(2026-11-12 룡 「위젯으로 먼저 써 보자」).
+// 맨 위: Lv · 막대 · 오늘 n칸 · 🏠 👛 ⛪ 버튼(누르면 앱에서 그 기록 창).
+// 그 아래: 오늘 일정 + 할 일(업무 기록 캘린더 위젯과 같은 나누기, TodayService). 동그라미 = 완료 확인 창(WidgetAction).
 public class Widget extends AppWidgetProvider {
-    static final int[] CELLS = {R.id.c0, R.id.c1, R.id.c2, R.id.c3, R.id.c4, R.id.c5};
-    static final int ON = 0xFF3B5B8C, OFF = 0xFFC9C6BD, READY = 0xFFE4E2DB;
 
     @Override
     public void onUpdate(Context ctx, AppWidgetManager m, int[] ids) {
@@ -29,15 +29,16 @@ public class Widget extends AppWidgetProvider {
     static void markToday(Context ctx, String day, Set<String> areas) {
         try {
             String s = Store.get(ctx).summary();
-            if (s.isEmpty()) return;
-            JSONObject o = new JSONObject(s);
-            JSONArray on = o.optJSONArray("on");
-            for (int i = 0; i < Daily.AREAS.length && on != null; i++) {
-                if (on.optInt(i) < 0) continue; // 준비 중은 그대로
-                on.put(i, areas.contains(Daily.AREAS[i]) ? 1 : 0);
+            if (!s.isEmpty()) {
+                JSONObject o = new JSONObject(s);
+                JSONArray on = o.optJSONArray("on");
+                for (int i = 0; i < Daily.AREAS.length && on != null; i++) {
+                    if (on.optInt(i) < 0) continue; // 준비 중은 그대로
+                    on.put(i, areas.contains(Daily.AREAS[i]) ? 1 : 0);
+                }
+                o.put("today", day);
+                Store.get(ctx).setSummary(o.toString());
             }
-            o.put("today", day);
-            Store.get(ctx).setSummary(o.toString());
         } catch (Exception ignored) {}
         draw(ctx);
     }
@@ -46,32 +47,49 @@ public class Widget extends AppWidgetProvider {
         AppWidgetManager m = AppWidgetManager.getInstance(ctx);
         int[] ids = m.getAppWidgetIds(new ComponentName(ctx, Widget.class));
         if (ids.length == 0) return;
-        RemoteViews v = new RemoteViews(ctx.getPackageName(), R.layout.widget);
-        String s = Store.get(ctx).summary();
-        if (s.isEmpty()) {
-            v.setTextViewText(R.id.lv, "라이프 RPG");
-            v.setTextViewText(R.id.sub, "눌러서 로그인");
-            v.setProgressBar(R.id.bar, 100, 0, false);
-        } else {
-            try {
-                JSONObject o = new JSONObject(s);
-                v.setTextViewText(R.id.lv, "Lv " + o.optInt("lv"));
-                v.setProgressBar(R.id.bar, 100, o.optInt("pct"), false);
-                JSONArray on = o.optJSONArray("on");
-                int n = 0, act = 0;
-                for (int i = 0; i < CELLS.length; i++) {
-                    int st = on == null ? 0 : on.optInt(i);
-                    v.setTextViewText(CELLS[i], Daily.AREAS[i]);
-                    v.setTextColor(CELLS[i], st > 0 ? ON : st < 0 ? READY : OFF);
-                    if (st >= 0) act++;
-                    if (st > 0) n++;
-                }
-                v.setTextViewText(R.id.sub, "오늘 " + n + "/" + act + "칸");
-            } catch (Exception ignored) {}
+        for (int id : ids) {
+            RemoteViews v = new RemoteViews(ctx.getPackageName(), R.layout.widget);
+            String s = Store.get(ctx).summary();
+            if (s.isEmpty()) {
+                v.setTextViewText(R.id.lv, "라이프 RPG");
+                v.setTextViewText(R.id.sub, "눌러서 로그인");
+                v.setProgressBar(R.id.bar, 100, 0, false);
+            } else {
+                try {
+                    JSONObject o = new JSONObject(s);
+                    v.setTextViewText(R.id.lv, "Lv " + o.optInt("lv"));
+                    v.setProgressBar(R.id.bar, 100, o.optInt("pct"), false);
+                    JSONArray on = o.optJSONArray("on");
+                    int n = 0, act = 0;
+                    for (int i = 0; on != null && i < on.length(); i++) {
+                        if (on.optInt(i) >= 0) act++;
+                        if (on.optInt(i) > 0) n++;
+                    }
+                    v.setTextViewText(R.id.sub, "오늘 " + n + "/" + act + "칸");
+                } catch (Exception ignored) {}
+            }
+            // 버튼: 앱을 열고 그 창
+            v.setOnClickPendingIntent(R.id.head, openApp(ctx, null, 70));
+            v.setOnClickPendingIntent(R.id.bHome, openApp(ctx, "home", 71));
+            v.setOnClickPendingIntent(R.id.bWallet, openApp(ctx, "wallet", 72));
+            v.setOnClickPendingIntent(R.id.bFather, openApp(ctx, "father", 73));
+            // 목록
+            Intent svc = new Intent(ctx, TodayService.class).putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id);
+            svc.setData(Uri.parse(svc.toUri(Intent.URI_INTENT_SCHEME)));
+            v.setRemoteAdapter(R.id.list, svc);
+            v.setEmptyView(R.id.list, R.id.empty);
+            PendingIntent tpl = PendingIntent.getActivity(ctx, 74, new Intent(ctx, WidgetAction.class),
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+            v.setPendingIntentTemplate(R.id.list, tpl);
+            v.setOnClickPendingIntent(R.id.empty, openApp(ctx, null, 75));
+            m.updateAppWidget(id, v);
         }
-        PendingIntent open = PendingIntent.getActivity(ctx, 7, new Intent(ctx, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        v.setOnClickPendingIntent(R.id.root, open);
-        m.updateAppWidget(ids, v);
+        m.notifyAppWidgetViewDataChanged(ids, R.id.list);
+    }
+
+    static PendingIntent openApp(Context ctx, String what, int code) {
+        Intent i = new Intent(ctx, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        if (what != null) i.putExtra(MainActivity.EXTRA_OPEN, what);
+        return PendingIntent.getActivity(ctx, code, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 }
