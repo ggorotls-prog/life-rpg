@@ -235,6 +235,37 @@ public class MainActivity extends Activity {
             return true;
         }
 
+        // 아빠 집: 영성 기록 앱의 그 탭(묵상·일기·가정예배)으로 연다. 오늘 날짜로 열린다(영성 기록 앱 EXTRA_TAB)
+        @JavascriptInterface public void openSpirit(String tab) {
+            runOnUiThread(() -> {
+                Intent i = new Intent().setClassName("app.personalrecord", "app.personalrecord.MainActivity")
+                        .putExtra("tab", tab).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                try { startActivity(i); }
+                catch (Exception e) {
+                    try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://personal-record-alpha.vercel.app/?tab=" + Uri.encode(tab)))); } catch (Exception ignored) {}
+                }
+            });
+        }
+
+        // 묵상 이미지 공유: 사진(Pictures/라이프 RPG)에 저장하고 그 사진을 공유 창으로(카톡 등)
+        @JavascriptInterface public void shareImage(String dataUrl, String name) {
+            try {
+                byte[] png = android.util.Base64.decode(dataUrl.substring(dataUrl.indexOf(',') + 1), android.util.Base64.DEFAULT);
+                android.content.ContentValues v = new android.content.ContentValues();
+                v.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name);
+                v.put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png");
+                v.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/라이프 RPG");
+                Uri uri = getContentResolver().insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
+                if (uri == null) throw new IllegalStateException();
+                try (java.io.OutputStream o = getContentResolver().openOutputStream(uri)) { o.write(png); }
+                Intent send = new Intent(Intent.ACTION_SEND).setType("image/png").putExtra(Intent.EXTRA_STREAM, uri)
+                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                open(Intent.createChooser(send, "묵상 보내기"));
+            } catch (Exception e) {
+                js("toast('공유 창을 열지 못했어요')");
+            }
+        }
+
         // 업무 기록 앱을 연다(요청받은 일·새 할 일)
         @JavascriptInterface public void openTodo() {
             runOnUiThread(() -> {

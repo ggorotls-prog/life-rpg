@@ -1,0 +1,6 @@
+-- 아빠 집(2026-11-12 룡): 감사·칭찬·SOC·일기를 라이프 RPG에서 바로 적는다. 묵상은 오늘 것을 읽기만(이미지 공유는 이 앱, 수정은 영성 기록 앱 묵상 탭).
+-- 실제 정의는 DB 마이그레이션 rpg_father_house. 줄 꼴은 영성 기록 사이트 lib/store.js와 같다(title·kind·record_date·written_by·owner_id·status 작성중).
+-- rpg_spirit_day(p_token) → {today, entries:[오늘 내 기록 전부], targets:[최근 칭찬 대상 12]}
+-- rpg_spirit_add(p_token, p_kind 감사|칭찬|SOC, p_text, p_target, p_learned)
+-- rpg_spirit_learned(p_token, p_id, p_learned)  SOC 배운 것 나중에
+-- rpg_diary_save(p_token, p_body)  하루 하나, 있으면 고침

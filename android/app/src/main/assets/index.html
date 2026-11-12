@@ -498,16 +498,140 @@ window.openQuest = () => {
 };
 
 // ⛪ 아빠 집 = 영성 기록 앱을 연다(묵상·가정예배·일기는 그 앱에서. 대신 쓰지 않는다)
-window.openFather = () => {
-  const sp = HOME.spirit_today || [];
-  const s = sheet(`<h3>⛪ 아빠 집</h3>
-    <div class="small">${['묵상','감사','칭찬','SOC','일기'].map(k => (sp.includes(k) ? '✓ ' : '· ') + k).join('<br>')}</div>
-    <button style="margin-top:14px" id="go">영성 기록 열기</button>
-    <div class="small mute" style="margin-top:8px">적고 돌아오면 여기에 바로 쌓여요</div>`);
-  s.querySelector('#go').onclick = () => { closeSheet();
-    if (window.Native && Native.openApp) Native.openApp('app.personalrecord', 'https://personal-record-alpha.vercel.app');
-    else open('https://personal-record-alpha.vercel.app'); };
+// ⛪ 아빠 집(2026-11-12 룡): 묵상·감사·칭찬·SOC·일기 버튼. 기록은 영성 기록과 같은 표(spirit_records)에.
+// 묵상 = 오늘 것이 있으면 공유 이미지 + 수정(영성 기록 앱 묵상 탭), 없으면 바로 영성 기록 앱 묵상 탭.
+// 감사·칭찬·SOC = 적는 칸 + 아래에 오늘 적은 것. 일기 = 오늘 일기 창(있으면 이어서 고침).
+let SP = null;
+async function spiritDay(){ SP = await rpc('rpg_spirit_day', {p_token: token()}); return SP; }
+const spOf = k => (SP ? SP.entries : []).filter(e => e.kind === k);
+function openSpiritApp(tab){
+  if (window.Native && Native.openSpirit) Native.openSpirit(tab);
+  else open('https://personal-record-alpha.vercel.app/?tab=' + encodeURIComponent(tab));
+}
+window.openFather = async () => {
+  const s = sheet(`<h3>⛪ 아빠 집</h3><div class="mute small">불러오는 중…</div>`);
+  try { await spiritDay(); } catch(e) { s.querySelector('.in').innerHTML = '<h3>⛪ 아빠 집</h3><div>인터넷을 확인해 주세요</div>'; return; }
+  const n = k => spOf(k).length;
+  const btn = (k, ic, sub) => `<div class="tile sm" data-k="${k}">${n(k) ? `<span class="got">${k==='묵상'||k==='일기' ? '✓' : n(k)}</span>` : ''}<div class="ic">${ic}</div><div class="nm">${k}</div><div class="st">${sub}</div></div>`;
+  s.querySelector('.in').innerHTML = `<h3>⛪ 아빠 집</h3><div class="town3">
+    ${btn('묵상','📖', n('묵상') ? '오늘 했어요' : '아직')}${btn('감사','🙏', n('감사') ? n('감사')+'개' : '적기')}${btn('칭찬','👏', n('칭찬') ? n('칭찬')+'개' : '적기')}
+    ${btn('SOC','🏫', n('SOC') ? n('SOC')+'개' : '적기')}${btn('일기','📝', n('일기') ? '이어 쓰기' : '쓰기')}</div>
+    <div class="small mute">기록은 영성 기록에도 똑같이 쌓여요</div>`;
+  s.querySelectorAll('[data-k]').forEach(t => t.onclick = () => {
+    const k = t.dataset.k;
+    if (k === '묵상') return openMeditation();
+    if (k === '일기') return openDiary();
+    openFw(k);
+  });
 };
+
+// 📖 묵상
+async function openMeditation(){
+  const m = spOf('묵상')[0];
+  if (!m) { closeSheet(); openSpiritApp('묵상'); return; }
+  const s = sheet(`<h3>📖 오늘 묵상</h3><div class="mute small">이미지 만드는 중…</div>`);
+  const QS = [['hear','① 말씀하시는 것'],['obey','② 순종할 것'],['pray','③ 기도제목'],['why','④ 왜 필요했나']];
+  const [y, mo, d] = SP.today.split('-').map(Number);
+  const data = { date: `${mo}월 ${d}일 (${'일월화수목금토'[new Date(Date.UTC(y,mo-1,d)).getUTCDay()]})`, title: m.verse || '',
+    qa: QS.filter(([k]) => (m[k]||'').trim()).map(([k, l]) => [l, m[k].trim()]) };
+  const url = await drawMeditation(data);
+  s.querySelector('.in').innerHTML = `<h3>📖 오늘 묵상</h3><img src="${url}" style="width:100%;border-radius:10px;border:1px solid var(--line)">
+    <div style="display:flex;gap:8px;margin-top:12px"><button class="ghost" id="ed">✏️ 수정</button><button id="sh">공유하기</button></div>
+    <div class="small mute" id="nt" style="margin-top:6px"></div>`;
+  s.querySelector('#ed').onclick = () => { closeSheet(); openSpiritApp('묵상'); };
+  s.querySelector('#sh').onclick = () => {
+    if (window.Native && Native.shareImage) Native.shareImage(url, `묵상_${SP.today.replace(/-/g,'')}.png`);
+    else { const a = document.createElement('a'); a.href = url; a.download = '묵상.png'; a.click(); }
+  };
+}
+// 영성 기록 사이트의 묵상 이미지와 같은 꼴(index.html drawMeditation): 날짜·장절 + ①~④ 답, 성경 본문 글은 넣지 않는다(저작권)
+async function drawMeditation(d){
+  const FONT = '"Pretendard Variable", Pretendard, system-ui, sans-serif';
+  try { await Promise.all([700, 500, 400].map(w => document.fonts.load(`${w} 40px "Pretendard Variable"`, '가나다 1:1'))); } catch(e) {}
+  const PAD = 48, CARD = 40, A4 = Math.SQRT2, c = document.createElement('canvas'), ctx = c.getContext('2d');
+  const C = { bg:'#f6f5f1', card:'#ffffff', ink:'#1f1f1d', sub:'#6b6a64', line:'#e4e2db', accent:'#5b4a8b' };
+  const f = (w, s) => `${w} ${s}px ${FONT}`;
+  const wrap = (text, max) => { const out = []; for (const para of text.split('\n')) { if (!para.trim()) { out.push(''); continue; } let line = '';
+      for (const word of para.split(/(\s+)/)) { if (!word) continue; if (ctx.measureText(line + word).width <= max) { line += word; continue; }
+        if (line.trim()) { out.push(line.trimEnd()); line = ''; } if (/^\s+$/.test(word)) continue;
+        for (const ch of word) { if (ctx.measureText(line + ch).width > max && line) { out.push(line); line = ''; } line += ch; } }
+      out.push(line.trimEnd()); } return out; };
+  const blockH = b => CARD + 44 + 22 + b.lines.length * 64 + CARD - 8;
+  const layout = W => { const INNER = W - PAD*2; ctx.font = f(700,64); const tl = d.title ? wrap(d.title, INNER) : [];
+    const bl = d.qa.map(([label, text]) => { ctx.font = f(400,40); return {label, lines: wrap(text, INNER - CARD*2)}; });
+    let H = PAD + 40 + 36 + tl.length*84 + 64; H += bl.length ? bl.reduce((s,b) => s + blockH(b) + 32, 0) : 120; H += 40 + 40 + PAD - 20;
+    return {W, INNER, tl, bl, H}; };
+  let L = layout(1080); for (let w = 1120; L.H > L.W*A4 && w <= 1440; w += 40) L = layout(w);
+  const {W, INNER, tl, bl} = L, H = Math.max(L.H, Math.round(W*A4));
+  c.width = W; c.height = H; ctx.fillStyle = C.bg; ctx.fillRect(0,0,W,H);
+  const rr = (x,y,w,h,r) => { ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); };
+  let y = PAD + 40; ctx.fillStyle = C.sub; ctx.font = f(500,34); ctx.fillText(`${d.date}  ·  묵상`, PAD, y); y += 36;
+  ctx.fillStyle = C.ink; ctx.font = f(700,64); for (const l of tl) { y += 84; ctx.fillText(l, PAD, y); } y += 64;
+  if (!bl.length) { ctx.fillStyle = C.sub; ctx.font = f(400,38); ctx.fillText('아직 적은 답이 없어요.', PAD, y + 40); }
+  for (const b of bl) { const h = blockH(b); ctx.fillStyle = C.card; rr(PAD, y, INNER, h, 28); ctx.fill(); ctx.strokeStyle = C.line; ctx.lineWidth = 2; ctx.stroke();
+    let by = y + CARD + 34; ctx.fillStyle = C.accent; ctx.font = f(700,34); ctx.fillText(b.label, PAD + CARD, by); by += 22;
+    ctx.fillStyle = C.ink; ctx.font = f(400,40); for (const l of b.lines) { by += 64; ctx.fillText(l, PAD + CARD, by - 12); } y += h + 32; }
+  ctx.fillStyle = C.sub; ctx.font = f(500,30); ctx.textAlign = 'right'; ctx.fillText('오늘의 묵상', W - PAD, H - PAD + 20); ctx.textAlign = 'left';
+  return c.toDataURL('image/png');
+}
+
+// 🙏 감사 · 👏 칭찬 · 🏫 SOC: 적는 칸 + 오늘 적은 것
+function openFw(k){
+  const ic = {감사:'🙏', 칭찬:'👏', SOC:'🏫'}[k];
+  const ph = {감사:'감사한 것', 칭찬:'무엇을 칭찬할까요', SOC:'있었던 일과 내 반응'}[k];
+  const s = sheet(`<h3>${ic} ${k}</h3>
+    ${k === '칭찬' ? `<input id="tg" placeholder="누구를"><div class="chips">${(SP.targets||[]).map(t => `<span class="chip" data-t="${esc(t)}">${esc(t)}</span>`).join('')}</div>` : ''}
+    <textarea id="tx" rows="3" placeholder="${ph}" style="width:100%;font:inherit;padding:12px;border:1px solid var(--line);border-radius:10px"></textarea>
+    ${k === 'SOC' ? `<textarea id="ln" rows="2" placeholder="배운 것 (없으면 비워 두고 나중에)" style="width:100%;font:inherit;padding:12px;border:1px solid var(--line);border-radius:10px;margin-top:6px"></textarea>` : ''}
+    <div class="err" id="err"></div><button id="go">적기</button>
+    <h2 style="margin-top:16px">오늘 적은 것</h2><div id="ls" class="small"></div>`);
+  s.querySelectorAll('[data-t]').forEach(c => c.onclick = () => { s.querySelector('#tg').value = c.dataset.t; });
+  const list = () => { const a = spOf(k);
+    s.querySelector('#ls').innerHTML = a.length ? a.map(e => k === 'SOC'
+      ? `<div class="task" style="display:block"><div>${esc(e.situation||'')}</div>${e.learned ? `<div class="mute" style="margin-top:4px">→ ${esc(e.learned)}</div>` : `<div class="mute" style="margin-top:4px"><span class="chip" data-l="${e.id}">배운 것 적기</span></div>`}</div>`
+      : `<div class="task" style="display:block">${e.target ? `<b>${esc(e.target)}</b> — ` : ''}${esc(e.body||'')}</div>`).join('') : '<span class="mute">아직 없어요</span>';
+    // 앱(WebView)에서는 prompt() 창이 안 떠서 그 자리에 칸을 연다
+    s.querySelectorAll('[data-l]').forEach(c => c.onclick = () => {
+      const box = c.parentElement;
+      box.innerHTML = `<input placeholder="배운 것"><button style="margin-top:4px;padding:8px">적기</button>`;
+      box.querySelector('input').focus();
+      box.querySelector('button').onclick = async () => {
+        const v = box.querySelector('input').value.trim(); if (!v) return;
+        const r = await rpc('rpg_spirit_learned', {p_token: token(), p_id: c.dataset.l, p_learned: v}).catch(() => null);
+        if (r && r.ok) { await spiritDay(); list(); toast('배운 것 적었어요'); } else toast('저장하지 못했어요');
+      };
+    }); };
+  list();
+  s.querySelector('#go').onclick = async () => {
+    const tx = s.querySelector('#tx').value.trim(), err = s.querySelector('#err');
+    if (!tx) { err.textContent = {감사:'감사한 것을 적어 주세요', 칭찬:'무엇을 칭찬할지 적어 주세요', SOC:'있었던 일을 적어 주세요'}[k]; return; }
+    const args = {p_token: token(), p_kind: k, p_text: tx};
+    if (k === '칭찬') args.p_target = s.querySelector('#tg').value.trim();
+    if (k === 'SOC') args.p_learned = s.querySelector('#ln').value.trim();
+    try { const r = await rpc('rpg_spirit_add', args);
+      if (r.error) { err.textContent = r.error; return; }
+      s.querySelector('#tx').value = ''; if (k === 'SOC') s.querySelector('#ln').value = '';
+      await spiritDay(); list(); toast(k + ' 적었어요'); load();
+    } catch(e) { err.textContent = '인터넷을 확인해 주세요'; }
+  };
+  s.querySelector('#tx').oninput = () => { s.querySelector('#err').textContent = ''; };
+}
+
+// 📝 일기: 오늘 일기(있으면 이어서 고침)
+function openDiary(){
+  const cur = spOf('일기')[0];
+  const s = sheet(`<h3>📝 오늘 일기</h3>
+    <textarea id="tx" rows="10" placeholder="오늘 하루" style="width:100%;font:inherit;padding:12px;border:1px solid var(--line);border-radius:10px;line-height:1.6">${esc(cur ? cur.body || '' : '')}</textarea>
+    <div class="err" id="err"></div><button id="go">${cur ? '고쳐 저장' : '저장'}</button>`);
+  s.querySelector('#go').onclick = async () => {
+    const tx = s.querySelector('#tx').value, err = s.querySelector('#err');
+    if (!tx.trim()) { err.textContent = '일기를 적어 주세요'; return; }
+    try { const r = await rpc('rpg_diary_save', {p_token: token(), p_body: tx});
+      if (r.error) { err.textContent = r.error; return; }
+      closeSheet(); toast('일기 저장했어요'); load();
+    } catch(e) { err.textContent = '인터넷을 확인해 주세요'; }
+  };
+}
 window.onNative = ev => { if (ev === 'resume') load(); };
 let y0 = null; // 아래로 당기면 새로고침
 addEventListener('touchstart', e => { y0 = scrollY === 0 ? e.touches[0].clientY : null; }, {passive:true});
