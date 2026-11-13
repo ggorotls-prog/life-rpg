@@ -246,7 +246,14 @@ public class TodayService extends RemoteViewsService {
             return v;
         }
 
-        @Override public RemoteViews getLoadingView() { return null; }
+        // 불러오는 동안 줄마다 「Loading…」 대신 빈 줄(2026-11-13 룡 할 일 「로드 중 안 사라짐」)
+        @Override public RemoteViews getLoadingView() {
+            RemoteViews v = new RemoteViews(ctx.getPackageName(), R.layout.widget_item);
+            v.setViewVisibility(R.id.wHead, View.GONE);
+            v.setViewVisibility(R.id.wNow, View.GONE);
+            v.setViewVisibility(R.id.wBody, View.GONE);
+            return v;
+        }
         @Override public int getViewTypeCount() { return 1; }
         @Override public long getItemId(int position) { return position; }
         @Override public boolean hasStableIds() { return false; }
