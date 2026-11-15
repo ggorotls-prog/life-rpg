@@ -6,3 +6,9 @@ dependencyResolutionManagement {
 }
 rootProject.name = 'life-rpg'
 include ':app'
+// 기록 앱 폰 기능 원본 한 벌(2026-11-15 룡 「하나로 모으자」): 빌드 때 그 기록 앱 저장소를 android/ext/에 받아 그 폴더를 그대로 쓴다.
+// 🏠 집 = 건강 기록(life-room) healthkit · 👛 지갑 = 재정 기록(faith-budget) finkit. 받는 법은 .github/workflows/android.yml 「기록 앱 원본 받기」
+include ':healthkit'
+project(':healthkit').projectDir = file('ext/life-room/android/healthkit')
+include ':finkit'
+project(':finkit').projectDir = file('ext/faith-budget/android/finkit')

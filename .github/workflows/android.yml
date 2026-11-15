@@ -27,6 +27,14 @@ jobs:
           if [ -z "$KEYSTORE_B64" ]; then echo "GitHub Secrets에 KEYSTORE_B64가 없어요"; exit 1; fi
           echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/record.p12"
           echo "KEYSTORE_FILE=$RUNNER_TEMP/record.p12" >> "$GITHUB_ENV"
+      # 기록 앱 폰 기능 원본 한 벌(2026-11-15 룡 「하나로 모으자」): 그 기록 앱 저장소를 받아 그 폴더를 그대로 쓴다(복사본 없음).
+      # 🏠 집 = 건강 기록(life-room) android/healthkit · 👛 지갑 = 재정 기록(faith-budget) android/finkit. 받은 판 번호를 기록에 남긴다
+      - name: 기록 앱 원본 받기
+        run: |
+          git clone -q --depth 1 https://github.com/ggorotls-prog/life-room.git android/ext/life-room
+          git clone -q --depth 1 https://github.com/ggorotls-prog/faith-budget.git android/ext/faith-budget
+          echo "건강 기록 원본: $(git -C android/ext/life-room rev-parse --short HEAD)"
+          echo "재정 기록 원본: $(git -C android/ext/faith-budget rev-parse --short HEAD)"
       - name: APK 만들기
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -158,6 +166,37 @@ jobs:
             echo "잠긴 채 마을을 열어도 건강 기록 화면"
             adb logcat -d -b crash > crash5.txt || true
             if grep -q "FATAL EXCEPTION" crash5.txt; then cat crash5.txt; exit 1; fi
+            # ---- 👛 지갑 = 재정 기록(2026-11-15 2단계) ----
+            adb shell settings delete secure enabled_accessibility_services || true
+            adb uninstall app.liferpg
+            adb install -r app-release.apk
+            adb shell pm grant app.liferpg android.permission.POST_NOTIFICATIONS || true
+            # ⑤ 위젯 👛 버튼과 같은 창: 빠른 기록 창(재정 위젯 − 지출과 같은 창)
+            adb logcat -c
+            adb shell am start -W -n app.liferpg/.WalletQuickActivity --es kind out
+            sleep 12
+            adb logcat -d -b crash > crash6.txt || true
+            if grep -q "FATAL EXCEPTION" crash6.txt; then cat crash6.txt; exit 1; fi
+            adb shell dumpsys activity activities | grep -E "topResumedActivity" | tee top4.txt
+            grep -q "app.liferpg/.WalletQuickActivity" top4.txt || { echo "지갑 빠른 기록 창이 안 떴어요"; exit 1; }
+            echo "👛 지갑 → 빠른 기록 창 뜸"
+            adb exec-out screencap -p > shot-wallet-quick.png || true
+            adb shell input keyevent KEYCODE_BACK
+            # ⑥ 마을 「📒 재정 장부 전체」와 같은 길(open=ledger): 재정 기록 화면 그 자체
+            adb shell am force-stop app.liferpg
+            adb shell am start -W -n app.liferpg/.MainActivity --es open ledger
+            sleep 15
+            adb logcat -d -b crash > crash7.txt || true
+            if grep -q "FATAL EXCEPTION" crash7.txt; then cat crash7.txt; exit 1; fi
+            adb shell dumpsys activity activities | grep -E "topResumedActivity" | tee top5.txt
+            grep -q "app.liferpg/.WalletActivity" top5.txt || { echo "재정 장부 화면이 안 떴어요"; exit 1; }
+            echo "📒 장부 → 재정 기록 화면 뜸"
+            adb exec-out screencap -p > shot-wallet.png || true
+            # ⑦ 「+ 수입 | − 지출」 위젯이 이 앱에 들어 있는지
+            adb shell dumpsys appwidget | grep -E "app.liferpg/.WalletWidget" | head -3 || true
+            adb shell cmd package query-receivers --components -a android.appwidget.action.APPWIDGET_UPDATE | grep -E "liferpg" | tee rcv.txt || true
+            grep -q "WalletWidget" rcv.txt || { echo "재정 위젯이 안 들어 있어요"; exit 1; }
+            echo "재정 위젯 들어 있음"
       # 화면 사진(밝은·어두운): 모양 확인용
       - uses: actions/upload-artifact@v4
         if: always()

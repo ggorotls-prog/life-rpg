@@ -71,10 +71,7 @@ public class Widget extends AppWidgetProvider {
             // 버튼: 앱을 열고 그 창
             v.setOnClickPendingIntent(R.id.head, openApp(ctx, null, 70));
             v.setOnClickPendingIntent(R.id.bHome, openApp(ctx, "home", 71));
-            Intent wallet = walletIntent(ctx);
-            v.setOnClickPendingIntent(R.id.bWallet, wallet != null
-                    ? PendingIntent.getActivity(ctx, 72, wallet, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE)
-                    : openApp(ctx, "wallet", 72));
+            v.setOnClickPendingIntent(R.id.bWallet, PendingIntent.getActivity(ctx, 72, walletIntent(ctx), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
             v.setOnClickPendingIntent(R.id.bFather, openApp(ctx, "father", 73));
             // 업무 기록 줄: ＋ 할 일(업무 기록 할 일 적기 창) · 맡기기 · 요청받은 일 · 확인할 일(업무 기록 앱)
             todoBar(ctx, v);
@@ -118,12 +115,10 @@ public class Widget extends AppWidgetProvider {
         return i;
     }
 
-    // 지갑 = 재정 기록 앱의 빠른 기록 창(재정 위젯 − 지출 버튼과 같은 창: 금액 → 가정/기업 → 항목 → 저장, 2026-11-12 룡 「재정기록 위젯이랑 동일하게」).
-    // 재정 기록 앱이 깔려 있지 않으면 null.
+    // 지갑 = 재정 기록 빠른 기록 창(재정 위젯 − 지출과 같은 창: 금액 → 가정/기업 → 항목 → 저장, 2026-11-12 룡 「재정기록 위젯이랑 동일하게」).
+    // 2026-11-15: 재정 기록 앱이 없어도 되게 이 앱 안의 같은 창(원본 한 벌 finkit의 FinQuick)을 연다.
     static Intent walletIntent(Context ctx) {
-        try { ctx.getPackageManager().getPackageInfo("app.faithbudget", 0); } catch (Exception e) { return null; }
-        return new Intent().setClassName("app.faithbudget", "app.faithbudget.QuickActivity")
-                .putExtra("kind", "지출").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        return app.recordkit.fin.FinWidget.quickIntent(ctx, WalletQuickActivity.class, "지출");
     }
 
     static PendingIntent openApp(Context ctx, String what, int code) {

@@ -87,7 +87,13 @@ public class MainActivity extends Activity {
         if (i == null || i.getStringExtra(EXTRA_OPEN) == null) return;
         // 🏠 집 = 건강 기록 화면(HealthActivity)을 바로 연다(2026-11-15)
         if ("home".equals(i.getStringExtra(EXTRA_OPEN))) { openHealth(); return; }
+        // 👛 장부 = 재정 기록 화면(WalletActivity)
+        if ("ledger".equals(i.getStringExtra(EXTRA_OPEN))) { openLedger(); return; }
         openWhat = i.getStringExtra(EXTRA_OPEN);
+    }
+
+    void openLedger() {
+        runOnUiThread(() -> { try { startActivity(new Intent(this, WalletActivity.class)); } catch (Exception ignored) {} });
     }
 
     void openHealth() {
@@ -242,13 +248,14 @@ public class MainActivity extends Activity {
             } catch (Exception ignored) {}
         }
 
-        // 지갑: 재정 기록 앱의 빠른 기록 창(재정 위젯과 똑같은 창)을 연다. 재정 기록 앱이 없으면 false → 화면이 자기 창을 띄움
+        // 지갑: 재정 기록 빠른 기록 창(재정 위젯 − 지출과 똑같은 창). 2026-11-15부터 이 앱 안의 같은 창(원본 한 벌 finkit)이라 늘 true
         @JavascriptInterface public boolean openWallet() {
-            Intent i = Widget.walletIntent(MainActivity.this);
-            if (i == null) return false;
-            open(i);
+            open(Widget.walletIntent(MainActivity.this));
             return true;
         }
+
+        // 👛 장부 전체 = 재정 기록 화면 그 자체(WalletActivity, 2026-11-15)
+        @JavascriptInterface public void openLedger() { MainActivity.this.openLedger(); }
 
         // 아빠 집: 영성 기록 앱의 그 탭(묵상·일기·가정예배)으로 연다. 오늘 날짜로 열린다(영성 기록 앱 EXTRA_TAB)
         @JavascriptInterface public void openSpirit(String tab) {

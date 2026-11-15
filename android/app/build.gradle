@@ -49,6 +49,7 @@ android {
 }
 
 dependencies {
-    // 🏠 집(건강 기록) 사진: 카메라로 찍은 파일 넘겨받기(FileProvider, 건강 기록 앱과 같음)
-    implementation 'androidx.core:core:1.13.1'
+    // 기록 앱 폰 기능 원본 한 벌(빌드 때 받아 씀): 🏠 건강 기록 · 👛 재정 기록
+    implementation project(':healthkit')
+    implementation project(':finkit')
 }

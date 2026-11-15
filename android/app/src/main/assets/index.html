@@ -350,6 +350,7 @@ function town(res, h){
       <div class="tile sm" onclick="openWallet()">${got('재정')}<div class="ic">👛</div><div class="nm">지갑</div><div class="st">${h.fin_today ? '오늘 '+h.fin_today+'건' : '돈 썼을 때'}</div></div>
       <div class="tile sm" onclick="openFather()">${got('영성')}<div class="ic">⛪</div><div class="nm">아빠 집</div><div class="st">${sp.length ? sp.join('·')+' ✓' : '아직'}</div></div>
     </div>
+    <div class="small mute" style="text-align:center;margin:-4px 0 12px"><a href="#" onclick="openLedger();return false">📒 재정 장부 전체</a></div>
     ${todayCard(h, res)}
     <div class="small mute" style="text-align:center">관계(통화·카톡)는 자동으로 들어와요</div>`;
   if (PENDING) { const p = PENDING; PENDING = null; openFrom(p); }
@@ -466,6 +467,11 @@ window.openHome = () => {
 window.openWallet = () => {
   if (window.Native && Native.openWallet && Native.openWallet()) return;
   openWalletHere();
+};
+// 📒 장부 전체 = 재정 기록 화면 그 자체(2026-11-15 2단계: 재정 기록 앱 없이 RPG만으로 같게). 앱 다리가 없으면(브라우저) 재정 기록 사이트로
+window.openLedger = () => {
+  if (window.Native && Native.openLedger) { Native.openLedger(); return; }
+  window.open('https://ggorotls-prog.github.io/faith-budget/', '_blank');
 };
 window.openWalletHere = () => {
   let kind = '지출', pick = null;
