@@ -129,7 +129,7 @@ jobs:
             grep "Bound services" acc.txt | grep -q "라이프 RPG 취침 잠금" || { grep -i -E "liferpg|Bound services" acc.txt || true; echo "잠금 서비스가 안 이어졌어요"; exit 1; }
             echo "잠금 서비스 이어짐"
             # ③ 「잘게요」로 잠긴 상태(시험판에 잠금 시각을 넣는다) → 다른 앱(설정)을 열면 덮개가 덮고 건강 기록 화면으로 끌려온다
-            adb shell settings put secure enabled_accessibility_services ""
+            adb shell settings delete secure enabled_accessibility_services || true
             adb uninstall app.liferpg
             adb install -r app-debug.apk
             adb shell pm grant app.liferpg android.permission.POST_NOTIFICATIONS || true
