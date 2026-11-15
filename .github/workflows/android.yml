@@ -1,15 +1,48 @@
 # 라이프 RPG 앱 APK를 GitHub가 만든다(2026-11-11, 업무 기록·카톡 기록 앱과 같은 방식). 컴퓨터에 설치할 것 없음.
 # android/ 를 고쳐 올리면 자동으로, 또는 Actions 탭에서 「Run workflow」로 만든다.
+# 2026-11-15 룡: 건강 기록(life-room)·재정 기록(faith-budget)의 폰 기능 원본(healthkit·finkit)이 바뀌면 RPG 새 버전도 저절로.
+#   15분마다 그 두 폴더의 마지막 바뀜(커밋)을 보고, 지난번 RPG가 쓴 판(app/kits.json)과 다르면 만든다. 비밀값·토큰이 필요 없다.
+#   웹 화면(index.html)은 앱이 주소로 띄우므로 바뀌면 다시 만들 필요 없이 바로 보인다.
 name: android-apk
 
 on:
   push:
     paths: ['android/**', '.github/workflows/android.yml']
+  schedule:
+    - cron: '*/15 * * * *'
   workflow_dispatch:
+    inputs:
+      check_only:
+        description: '원본이 바뀌었을 때만 만들기(15분 점검과 같게)'
+        type: boolean
+        default: false
 
 jobs:
-  build:
+  # 원본(healthkit·finkit)이 지난번 RPG 판과 달라졌나. push·그냥 Run workflow는 늘 만든다
+  check:
     runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.c.outputs.go }}
+    steps:
+      - id: c
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          H=$(gh api "repos/ggorotls-prog/life-room/commits?path=android/healthkit&per_page=1" -q '.[0].sha')
+          F=$(gh api "repos/ggorotls-prog/faith-budget/commits?path=android/finkit&per_page=1" -q '.[0].sha')
+          echo "원본 지금: healthkit $H · finkit $F"
+          if [ "${{ github.event_name }}" = "push" ] || { [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.check_only }}" != "true" ]; }; then echo "go=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          OLD=$(gh api "repos/${{ github.repository }}/contents/app/kits.json" -q .content 2>/dev/null | base64 -d 2>/dev/null || echo '{}')
+          echo "지난번 RPG 판: $OLD"
+          if [ -n "$H" ] && [ -n "$F" ] && echo "$OLD" | grep -q "$H" && echo "$OLD" | grep -q "$F"; then echo "그대로라 안 만들어요"; echo "go=false" >> "$GITHUB_OUTPUT"; else echo "원본이 바뀌어 새로 만들어요"; echo "go=true" >> "$GITHUB_OUTPUT"; fi
+
+  build:
+    needs: check
+    if: needs.check.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      healthkit: ${{ steps.kits.outputs.healthkit }}
+      finkit: ${{ steps.kits.outputs.finkit }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -30,7 +63,12 @@ jobs:
       # 기록 앱 폰 기능 원본 한 벌(2026-11-15 룡 「하나로 모으자」): 그 기록 앱 저장소를 받아 그 폴더를 그대로 쓴다(복사본 없음).
       # 🏠 집 = 건강 기록(life-room) android/healthkit · 👛 지갑 = 재정 기록(faith-budget) android/finkit. 받은 판 번호를 기록에 남긴다
       - name: 기록 앱 원본 받기
+        id: kits
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          echo "healthkit=$(gh api "repos/ggorotls-prog/life-room/commits?path=android/healthkit&per_page=1" -q '.[0].sha')" >> "$GITHUB_OUTPUT"
+          echo "finkit=$(gh api "repos/ggorotls-prog/faith-budget/commits?path=android/finkit&per_page=1" -q '.[0].sha')" >> "$GITHUB_OUTPUT"
           git clone -q --depth 1 https://github.com/ggorotls-prog/life-room.git android/ext/life-room
           git clone -q --depth 1 https://github.com/ggorotls-prog/faith-budget.git android/ext/faith-budget
           echo "건강 기록 원본: $(git -C android/ext/life-room rev-parse --short HEAD)"
@@ -207,7 +245,7 @@ jobs:
   # main에서 만들고 가상 폰 확인까지 통과하면, APK를 사이트(app/)에 올린다.
   # 폰의 앱이 app/version.json을 보고 새 버전이면 스스로 받아서 업데이트한다. (플레이 스토어 없이 0원)
   publish:
-    needs: smoke
+    needs: [build, smoke]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -224,6 +262,8 @@ jobs:
           cp dist/app-release.apk app/life-rpg.apk
           SHA=$(sha256sum app/life-rpg.apk | cut -d' ' -f1)
           printf '{"versionCode":%s,"apk":"/app/life-rpg.apk","sha256":"%s"}\n' "$GITHUB_RUN_NUMBER" "$SHA" > app/version.json
+          # 이 판이 쓴 기록 앱 원본(15분 점검이 이것과 비교한다)
+          printf '{"healthkit":"%s","finkit":"%s"}\n' "${{ needs.build.outputs.healthkit }}" "${{ needs.build.outputs.finkit }}" > app/kits.json
           git config user.name "life-rpg-bot"
           git config user.email "life-rpg-bot@users.noreply.github.com"
           git add -f app

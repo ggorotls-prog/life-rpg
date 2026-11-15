@@ -4,12 +4,8 @@ package app.liferpg;
 // 내용은 원본 한 벌: 재정 기록 저장소(faith-budget) android/finkit의 FinScreen(재정 기록 앱 MainActivity와 같은 것).
 // 이 앱만의 것: RPG 로그인으로 재정 기록에도 바로 들어가기(rpg_fin_token).
 public class WalletActivity extends app.recordkit.fin.FinScreen {
-    private boolean triedSignIn;
-
     @Override
     protected void onPageReady() {
-        if (triedSignIn) return;
-        triedSignIn = true;
         SignIn.once(this, web, "fin_session", "rpg_fin_token");
     }
 }
