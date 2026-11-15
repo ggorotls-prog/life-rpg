@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 취침 잠금: 어떤 앱이 화면에 올라오는지만 본다. 화면 내용은 읽지 않는다 -->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/lock_desc"
+    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:notificationTimeout="50"
+    android:canRetrieveWindowContent="false" />

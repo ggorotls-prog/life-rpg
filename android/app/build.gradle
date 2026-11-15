@@ -47,3 +47,8 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 }
+
+dependencies {
+    // 🏠 집(건강 기록) 사진: 카메라로 찍은 파일 넘겨받기(FileProvider, 건강 기록 앱과 같음)
+    implementation 'androidx.core:core:1.13.1'
+}

@@ -31,11 +31,16 @@ jobs:
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: gradle -p android assembleRelease --no-daemon
+        run: gradle -p android assembleRelease assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: life-rpg-apk
           path: android/app/build/outputs/apk/release/app-release.apk
+      # 시험용(가상 폰에서 잠금 상태를 직접 넣어 보려고). 사이트에는 안 올린다
+      - uses: actions/upload-artifact@v4
+        with:
+          name: life-rpg-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
 
   # 가상 안드로이드 폰에 깔아서 실제로 켜 본다. 켜자마자 꺼지면 오류 기록을 남기고 실패로 표시한다.
   smoke:
@@ -45,6 +50,9 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: life-rpg-apk
+      - uses: actions/download-artifact@v4
+        with:
+          name: life-rpg-debug
       - name: KVM 켜기
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -97,6 +105,59 @@ jobs:
             # 비행기 모드를 켜면 가상 폰의 구글 서비스가 죽고, 그걸 쓰는 WebView 앱도 같이 정리된다(우리 오류 아님, 2026-11-11 8번). 그래서 여기도 오류(FATAL)만 본다
             adb logcat -d | grep -E "Killing [0-9]+:app.liferpg" || true
             echo "인터넷 꺼도 앱이 켜져 있어요"
+            adb shell cmd connectivity airplane-mode disable || true; adb shell svc wifi enable; adb shell svc data enable
+            sleep 8
+            # ---- 🏠 집 = 건강 기록 화면 + 취침 잠금(2026-11-15). 건강 기록 앱 시험과 같은 것 ----
+            # ① 위젯 🏠 버튼과 같은 길(open=home)로 열면 건강 기록 화면(HealthActivity)이 뜬다
+            adb logcat -c
+            adb shell am force-stop app.liferpg
+            adb shell am start -W -n app.liferpg/.MainActivity --es open home
+            sleep 15
+            adb logcat -d -b crash > crash4.txt || true
+            echo "===== crash (집) ====="; cat crash4.txt
+            if grep -q "FATAL EXCEPTION" crash4.txt; then exit 1; fi
+            adb shell dumpsys activity activities | grep -E "topResumedActivity|mResumedActivity" | tee top1.txt
+            grep -q "app.liferpg/.HealthActivity" top1.txt || { echo "건강 기록 화면이 안 떴어요"; exit 1; }
+            echo "🏠 집 → 건강 기록 화면 뜸"
+            adb exec-out screencap -p > shot-home.png || true
+            adb shell dumpsys alarm | grep -c "app.liferpg" || true
+            # ② 취침 잠금 서비스가 폰과 이어지는지(건강 기록 앱 시험과 같음)
+            adb shell settings put secure enabled_accessibility_services app.liferpg/app.liferpg.LockService
+            adb shell settings put secure accessibility_enabled 1
+            sleep 5
+            adb shell dumpsys accessibility > acc.txt || true
+            grep "Bound services" acc.txt | grep -q "라이프 RPG 취침 잠금" || { grep -i -E "liferpg|Bound services" acc.txt || true; echo "잠금 서비스가 안 이어졌어요"; exit 1; }
+            echo "잠금 서비스 이어짐"
+            # ③ 「잘게요」로 잠긴 상태(시험판에 잠금 시각을 넣는다) → 다른 앱(설정)을 열면 덮개가 덮고 건강 기록 화면으로 끌려온다
+            adb shell settings put secure enabled_accessibility_services ""
+            adb uninstall app.liferpg
+            adb install -r app-debug.apk
+            adb shell pm grant app.liferpg android.permission.POST_NOTIFICATIONS || true
+            NOW="$(adb shell date +%s | tr -d '\r')000"; printf '<?xml version="1.0" encoding="utf-8" standalone="yes" ?>\n<map>\n    <long name="locked_at" value="%s" />\n    <boolean name="acc_asked" value="true" />\n</map>\n' "$NOW" > life.xml; cat life.xml
+            adb push life.xml /data/local/tmp/life.xml
+            adb shell chmod 644 /data/local/tmp/life.xml
+            adb shell run-as app.liferpg mkdir -p shared_prefs
+            adb shell run-as app.liferpg cp /data/local/tmp/life.xml shared_prefs/life.xml
+            adb shell run-as app.liferpg cat shared_prefs/life.xml
+            adb shell settings put secure enabled_accessibility_services app.liferpg/app.liferpg.LockService
+            adb shell settings put secure accessibility_enabled 1
+            sleep 6
+            adb logcat -c
+            adb shell am start -W -a android.settings.SETTINGS
+            sleep 6
+            adb exec-out screencap -p > shot-locked.png || true
+            adb shell dumpsys activity activities | grep -E "topResumedActivity|mResumedActivity" | tee top2.txt
+            adb shell dumpsys window windows | grep -i -E "AccessibilityOverlay|ACCESSIBILITY_OVERLAY|liferpg" | head -20 || true
+            grep -q "app.liferpg/.HealthActivity" top2.txt || { echo "잠겼는데 설정 앱이 열려 있어요"; exit 1; }
+            echo "잠금 확인: 설정을 열어도 건강 기록 화면으로 돌아옴"
+            # ④ 잠긴 채로 마을(라이프 RPG 첫 화면)을 열어도 건강 기록 화면으로
+            adb shell am start -W -n app.liferpg/.MainActivity
+            sleep 5
+            adb shell dumpsys activity activities | grep -E "topResumedActivity|mResumedActivity" | tee top3.txt
+            grep -q "app.liferpg/.HealthActivity" top3.txt || { echo "잠겼는데 마을이 열려 있어요"; exit 1; }
+            echo "잠긴 채 마을을 열어도 건강 기록 화면"
+            adb logcat -d -b crash > crash5.txt || true
+            if grep -q "FATAL EXCEPTION" crash5.txt; then cat crash5.txt; exit 1; fi
       # 화면 사진(밝은·어두운): 모양 확인용
       - uses: actions/upload-artifact@v4
         if: always()

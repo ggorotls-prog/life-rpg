@@ -18,6 +18,8 @@
         <package android:name="app.personalrecord" />
         <package android:name="app.todohub" />
         <package android:name="app.faithbudget" />
+        <!-- 건강 기록 단독 앱이 깔려 있으면 아침·밤 알림을 그 앱에 맡긴다 -->
+        <package android:name="app.liferoom" />
     </queries>
 
     <application
@@ -68,5 +70,42 @@
             android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <receiver android:name=".UpdateReceiver" android:exported="false" />
+
+        <!-- 🏠 집 = 건강 기록 화면 그 자체(2026-11-15 룡). 건강 기록 앱 MainActivity와 같은 설정 -->
+        <activity
+            android:name=".HealthActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
+        <!-- 건강 기록 아침 8시·밤 10시 알림(건강 기록 앱이 없을 때만 울림), 재부팅·업데이트 뒤 다시 걸기 -->
+        <receiver android:name=".HealthReminder" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 취침 잠금: 건강 기록 앱 LockService와 같은 것. 룡이 설정 > 접근성에서 한 번 켠다 -->
+        <service
+            android:name=".LockService"
+            android:exported="true"
+            android:label="라이프 RPG 취침 잠금 (건강 기록)"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/lock_service" />
+        </service>
+
+        <!-- 건강 기록 사진 찍기(카메라가 찍은 파일 넘겨받기) -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/files" />
+        </provider>
     </application>
 </manifest>

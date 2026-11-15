@@ -3,4 +3,6 @@
     <!-- 라이프 RPG 포인트 색(남색, 2026-11-12) -->
     <color name="brand">#3B5B8C</color>
     <string name="widget_desc">레벨 · 오늘 일정과 할 일 · 집·지갑·아빠 집</string>
+    <!-- 취침 잠금 설명(건강 기록 앱과 같은 글) -->
+    <string name="lock_desc">「잘게요」 뒤 일어날 때까지 다른 앱을 열면 건강 기록으로 돌아옵니다. 전화·알람은 그대로 받을 수 있어요. 화면 내용은 읽지 않습니다.</string>
 </resources>

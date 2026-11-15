@@ -73,6 +73,7 @@ public class MainActivity extends Activity {
         }
         Daily.schedule(this);
         Daily.Job.schedule(this);
+        HealthReminder.schedule(this);
         take(getIntent());
         if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
@@ -82,7 +83,16 @@ public class MainActivity extends Activity {
     static final String EXTRA_OPEN = "open";
     private String openWhat;
 
-    private void take(Intent i) { if (i != null && i.getStringExtra(EXTRA_OPEN) != null) openWhat = i.getStringExtra(EXTRA_OPEN); }
+    private void take(Intent i) {
+        if (i == null || i.getStringExtra(EXTRA_OPEN) == null) return;
+        // 🏠 집 = 건강 기록 화면(HealthActivity)을 바로 연다(2026-11-15)
+        if ("home".equals(i.getStringExtra(EXTRA_OPEN))) { openHealth(); return; }
+        openWhat = i.getStringExtra(EXTRA_OPEN);
+    }
+
+    void openHealth() {
+        runOnUiThread(() -> { try { startActivity(new Intent(this, HealthActivity.class)); } catch (Exception ignored) {} });
+    }
 
     private void openFromIntent() {
         if (openWhat == null || !loaded) return;
@@ -102,6 +112,8 @@ public class MainActivity extends Activity {
         super.onResume();
         visible = true;
         if (loaded) js("window.onNative && onNative('resume')");
+        // 자는 중(잘게요 뒤)에는 마을 대신 건강 기록 화면으로(건강 기록 앱이 그 화면에 고정되는 것과 같게). 업데이트도 묻지 않는다
+        if (LockService.isLocked(this)) { openHealth(); return; }
         Context app = getApplicationContext();
         boolean retry = backFromSecurity;
         backFromSecurity = false;
@@ -145,6 +157,9 @@ public class MainActivity extends Activity {
             Widget.draw(getApplicationContext());
         }
         @JavascriptInterface public String version() { return BuildConfig.VERSION_NAME; }
+
+        // 🏠 집: 건강 기록 화면 그 자체를 이 앱 안에서 연다(HealthActivity). 돌아오면 onNative('resume')로 다시 불러와 +EXP
+        @JavascriptInterface public void openHealth() { MainActivity.this.openHealth(); }
 
         // 화면이 계산한 요약 → 위젯
         @JavascriptInterface public void setSummary(String json) {

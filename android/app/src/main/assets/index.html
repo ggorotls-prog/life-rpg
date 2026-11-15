@@ -440,8 +440,10 @@ async function save(fn, args, okMsg){
   } catch(e) { toast('저장하지 못했어요. 인터넷을 확인해 주세요'); return null; }
 }
 
-// 🏠 집 = 건강 기록(일어났어요·잘게요). 하루 경계는 새벽 4시(건강 기록과 같음)
+// 🏠 집 = 건강 기록 화면 그 자체(2026-11-15 룡 「기록 앱은 동일, RPG는 비추는 창」): 앱 안 HealthActivity가 건강 기록 사이트를 띄운다.
+// 잘게요 → 폰 잠금까지 건강 기록 앱과 똑같다. 아래 창은 앱 다리가 없을 때(브라우저)만 쓴다. 하루 경계는 새벽 4시(건강 기록과 같음)
 window.openHome = () => {
+  if (window.Native && Native.openHealth) { Native.openHealth(); return; }
   const h = HOME.health;
   if (!h) return toast('건강 기록 계정이 이어져 있지 않아요');
   if (h.need) {
