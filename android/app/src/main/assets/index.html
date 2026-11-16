@@ -31,6 +31,10 @@ input{width:100%;font:inherit;padding:12px;border:1px solid var(--line);border-r
 button{font:inherit;border:0;background:var(--brand);color:#fff;border-radius:10px;padding:12px 16px;width:100%;font-weight:600}
 button.ghost{background:transparent;color:var(--mute);border:1px solid var(--line)}
 .err{color:#b33;font-size:13px;min-height:18px}
+.cons{display:flex;gap:8px;align-items:flex-start;margin:6px 0;font-size:14px;line-height:1.45}
+.cons input,.chip input{width:20px;height:20px;margin:0;flex:none;accent-color:var(--brand)}
+.chip{display:inline-flex;gap:4px;align-items:center;border:1px solid var(--line);border-radius:16px;padding:6px 10px;font-size:14px;background:#fff}
+details summary{cursor:pointer;color:var(--brand)}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9;padding:24px}
 .ov .card{width:100%;max-width:360px;text-align:center}
 .big{font-size:44px;font-weight:800;color:var(--brand);margin:6px 0}
@@ -272,7 +276,7 @@ function render(res, data){
       <div class="small">고른 주(모든 칸 한 번 이상): <b>${res.balWeeks}주</b>${res.balNow ? ' · 이번 주 ✓' : ''} <span class="mute">· 배지 1·4·8·12주</span></div></div>
     <div class="card"><h2>누적 배지 (기록한 날)</h2>${badges}</div>
     <div class="foot">마을에서 적은 것도 각 기록 앱에 똑같이 쌓여요<br>
-      <span onclick="askGender()" style="text-decoration:underline">캐릭터 바꾸기</span> · <span onclick="logout()" style="text-decoration:underline">로그아웃</span>${window.Native ? ' · 버전 '+Native.version() : ''}</div>`;
+      <span onclick="openSettings()" style="text-decoration:underline">⚙ 설정</span> · <span onclick="logout()" style="text-decoration:underline">로그아웃</span>${window.Native ? ' · 버전 '+Native.version() : ''}</div>`;
   levelUps(res, cl);
   ls.set('rpg_last', {date: res.today, xp: res.totalXp});
   if (window.Native && Native.setSummary) Native.setSummary(JSON.stringify({
@@ -297,11 +301,13 @@ function levelUps(res, cl){
 async function load(){
   if (!token()) return loginView();
   try {
-    const [data, home, gd] = await Promise.all([rpc('rpg_days', {p_token: token()}), rpc('rpg_home', {p_token: token()}),
-      rpc('rpg_gender', {p_token: token()}).catch(() => ({failed: true}))]);
+    const [data, home, gd, me] = await Promise.all([rpc('rpg_days', {p_token: token()}), rpc('rpg_home', {p_token: token()}),
+      rpc('rpg_gender', {p_token: token()}).catch(() => ({failed: true})),
+      rpc('rpg_me', {p_token: token()}).catch(() => null)]);
     const before = RES ? RES.totalXp : null;
     const res = compute(data), peaks = applyPeaks(res, data.peaks);
     HOME = home; if (gd && !gd.failed) GENDER = gd.gender || null;
+    if (me && !me.error) ME = me;
     render(res, data);
     town(res, home);
     document.getElementById('nav').style.display = 'flex';
@@ -310,6 +316,8 @@ async function load(){
     if (before !== null && res.totalXp > before) reward('✓ 기록됨'); // 2026-11-16 룡: 경험치 숫자는 화면에 띄우지 않는다
     rpc('rpg_save_peaks', {p_token: token(), p_peaks: peaks}).catch(() => {});
     // 성별이 비었으면 앱을 켠 뒤 한 번만, 열린 창이 없을 때 묻는다(쓰던 창을 덮지 않게)
+    // 기존 사용자: 동의 창을 먼저(쓸 기록 고르기 + 동의, 2026-11-16 법무사 「이미 쓰는 사람도 같은 동의」)
+    if (ME && ME.need_consent && !ME.owner && !document.querySelector('.sheet')) { consentView(); return; }
     if (gd && !gd.failed && !GENDER && !ASKED && !document.querySelector('.sheet')) { ASKED = true; askGender(); }
   } catch(e) {
     if (e && e.body && JSON.stringify(e.body).includes('auth')) { setToken(''); return loginView(); }
@@ -324,9 +332,10 @@ function loginView(){
   document.getElementById('app').style.display = '';
   document.body.classList.remove('tabs');
   document.getElementById('app').innerHTML = `<div class="card"><h2 style="color:var(--ink);font-size:18px">라이프 RPG</h2>
-    <div class="small mute">업무 기록 아이디(예: 깐깐룡이)와 비밀번호</div>
-    <input id="id" autocomplete="username" placeholder="아이디"><input id="pw" type="password" autocomplete="current-password" placeholder="비밀번호">
-    <div class="err" id="err"></div><button id="go">들어가기</button></div>`;
+    <div class="small mute">닉네임(아이디)과 비밀번호</div>
+    <input id="id" autocomplete="username" placeholder="닉네임"><input id="pw" type="password" autocomplete="current-password" placeholder="비밀번호">
+    <div class="err" id="err"></div><button id="go">들어가기</button>
+    <button class="ghost" style="margin-top:10px" onclick="signupView()">처음이에요 · 가입 신청</button></div>`;
   document.getElementById('go').onclick = async () => {
     const id = document.getElementById('id').value, pw = document.getElementById('pw').value, err = document.getElementById('err');
     err.textContent = '';
@@ -361,6 +370,206 @@ window.setGender = async g => {
   document.querySelectorAll('.sheet').forEach(s => s.remove());
   const me = document.querySelector('#world .me'); if (me) me.textContent = meEmoji();
 };
+// ===== 가입 신청·동의·확장팩 (2026-11-16 룡, 법무사 3차 · 동의 문구 = 시안\가입 동의 문구 초안.md 1판) =====
+// 확장팩 = 기록마다 룡이 열어 줌. 열린 것만 마을에 건물. 동의는 연 기록 것만. DB: rpg_join_request·rpg_me·rpg_pack_*·rpg_consent_set·rpg_leave
+let ME = null;
+const has = p => !ME || ME.owner || (ME.packs && ME.packs[p] === 'open');   // ME를 못 불러오면 예전처럼 모두 보임(본인 기록)
+const PRIVACY = 'https://ggorotls-prog.github.io/life-rpg/privacy.html';
+window.openPrivacy = () => { const N = window.Native; if (N && N.openApp) N.openApp('none.privacy', PRIVACY); else window.open(PRIVACY, '_blank'); };
+const PACKS = [
+  {k:'건강', icon:'🏠', b:'집', main:'잠·식사·운동 기록을 저장해서 내 캐릭터를 키워요.',
+   sens:'컨디션·식사·운동 메모처럼 <b>몸 상태(건강)에 관한 기록</b>을 저장하는 데 따로 동의해요.',
+   what:'일어난·잔 시각, 컨디션, 식사·운동 사진과 메모, 잠금 해제 이유'},
+  {k:'재정', icon:'👛', b:'시장', main:'쓴 돈·들어온 돈을 저장해서 내 캐릭터를 키워요.',
+   what:'날짜, 금액, 어디에 썼는지 짧은 이름, 메모', more:'계좌·카드 번호·잔액은 저장하지 않아요'},
+  {k:'영성', icon:'⛪', b:'아빠 집', main:'묵상·감사·기도·일기를 저장해서 내 캐릭터를 키워요.',
+   sens:'묵상·기도·일기처럼 <b>신앙에 관한 기록</b>을 저장하는 데 따로 동의해요.',
+   what:'묵상·감사·칭찬·기도·일기에 적은 글, 통독한 장'},
+  {k:'업무', icon:'📜', b:'게시판', main:'할 일을 저장해서 내 캐릭터를 키워요.', what:'할 일 제목·메모·날짜'},
+];
+const ck = (id, label, cls='') => `<label class="cons ${cls}"><input type="checkbox" id="${id}"><span>${label}</span></label>`;
+const det = html => `<details class="small mute" style="margin:2px 0 10px 28px"><summary>자세히</summary>${html}</details>`;
+function packBlock(p, pre){
+  return `<div class="pk" id="${pre}box_${p.k}" style="display:none;margin:4px 0 12px;padding:10px;border:1px solid var(--line);border-radius:12px">
+    <div style="font-weight:700;margin-bottom:4px">${p.icon} ${p.b} (${p.k})</div>
+    ${ck(pre+'c_'+p.k, `[${p.b}을 열려면 필요] ${p.main}`)}
+    ${p.sens ? ck(pre+'c_'+p.k+'_민감', `[${p.b}을 열려면 필요] ${p.sens}`) : ''}
+    <div class="small" style="margin-left:28px"><b>${p.what}을 서버에 저장해요 · ${p.b}을 닫거나 탈퇴하면 30일 안에 지워요</b></div>
+    ${det(`${p.more ? '· '+p.more+'<br>' : ''}· 쓰는 곳: 내 기록을 저장하고 다시 보여 주기, 레벨 계산<br>· 동의하지 않아도 돼요. 그러면 ${p.b}만 열리지 않아요`)}
+  </div>`;
+}
+const REPORT_HTML = pre => `<div style="margin-top:14px;font-weight:700">성장 보고서 <span class="small mute">[선택] 안 해도 앱은 그대로 써요</span></div>
+  ${ck(pre+'r_read', '[선택] 내 기록을 만든 사람이 읽고 성장 보고서를 만들어 드려요.')}
+  ${ck(pre+'r_ai', '[선택] 보고서를 만들 때 내 기록을 <b>미국의 AI 회사 Anthropic으로 보내요</b>.')}
+  ${ck(pre+'r_sens', '[선택] <b>건강·신앙 기록</b>도 보고서에 넣어요(따로 동의).')}
+  ${det(`· 만든 사람: 김귀룡 · ryong.office@gmail.com<br>· 읽는 것: 내가 연 확장팩의 기록(건강·신앙은 셋째 칸에 체크했을 때만)<br>· 쓰는 곳: 성장 보고서(요약·분석·조언)<br>
+    · Anthropic: 보고서 글을 만드는 일에 써요 · 보고서를 만들 때마다 인터넷으로 보내요 · 30일 뒤 지워요 · privacy@anthropic.com<br>
+    · 안 하면: 보고서를 만드는 데 내 기록을 쓰지 않아요 · ⚙ 설정에서 언제든 끌 수 있어요`)}`;
+function readConsents(pre, packs){
+  const on = id => { const e = document.getElementById(id); return !!(e && e.checked); };
+  const c = [];
+  if (on(pre+'base')) c.push('기본'); if (on(pre+'age')) c.push('만14세');
+  for (const k of packs) { if (on(pre+'c_'+k)) c.push(k); if (on(pre+'c_'+k+'_민감')) c.push(k+'_민감'); }
+  if (on(pre+'r_read')) c.push('보고서_읽기'); if (on(pre+'r_ai')) c.push('보고서_AI'); if (on(pre+'r_sens')) c.push('보고서_민감');
+  return c;
+}
+const pickHtml = pre => `<div class="row" style="flex-wrap:wrap;gap:6px;margin:6px 0 10px">${PACKS.map(p =>
+  `<label class="chip"><input type="checkbox" id="${pre}p_${p.k}" onchange="document.getElementById('${pre}box_${p.k}').style.display=this.checked?'':'none'"> ${p.icon} ${p.b}</label>`).join('')}</div>`;
+const pickedPacks = pre => PACKS.map(p => p.k).filter(k => { const e = document.getElementById(pre+'p_'+k); return e && e.checked; });
+
+// 1) 가입 신청 (로그인 화면)
+let SG = null;
+window.signupView = () => {
+  SG = null;
+  document.getElementById('app').innerHTML = `<div class="card">
+    <h2 style="color:var(--ink);font-size:18px">가입 신청</h2>
+    <div class="small">반가워요! 라이프 RPG는 하루를 기록하면 캐릭터가 함께 자라는 앱이에요.<br>기록을 서버에 저장해 두려고, 시작 전에 몇 가지만 여쭤볼게요.</div>
+    <div class="small" style="margin:6px 0 12px"><a href="#" onclick="openPrivacy();return false">개인정보 처리방침 보기 ›</a></div>
+    <input id="sg_nick" placeholder="닉네임 = 로그인 아이디 (2~12자)" maxlength="12">
+    <input id="sg_pw" type="password" autocomplete="new-password" placeholder="비밀번호 (6자 이상, 영어+숫자)">
+    <input id="sg_pw2" type="password" autocomplete="new-password" placeholder="비밀번호 한 번 더">
+    <div style="margin:8px 0 4px;font-weight:700">캐릭터</div>
+    <div class="row" style="gap:8px"><button class="ghost" id="sg_m" style="flex:1" onclick="sgGender('남')">🧍‍♂️ 남자</button><button class="ghost" id="sg_f" style="flex:1" onclick="sgGender('여')">🧍‍♀️ 여자</button></div>
+    <div style="margin-top:12px">${ck('sg_base', '[필수] 닉네임·비밀번호·성별로 내 계정과 캐릭터를 만들어요.')}
+      <div class="small" style="margin-left:28px"><b>닉네임·비밀번호·성별을 저장해요 · 탈퇴하면 30일 안에 지워요</b></div>
+      ${det('· 쓰는 곳: 로그인, 캐릭터 모양(남자·여자)<br>· 비밀번호는 알아볼 수 없게 바꿔 저장해요<br>· 맡기는 곳: 서버 회사 Supabase(서울에 저장)<br>· 개인정보를 맡아 관리하는 사람: 김귀룡 · ryong.office@gmail.com<br>· 동의하지 않으면 가입할 수 없어요')}
+      ${ck('sg_age', '[필수] 만 14세 이상이에요.')}</div>
+    <div style="margin-top:12px;font-weight:700">쓸 기록 고르기 <span class="small mute">(만든 사람이 열어 줘요)</span></div>
+    ${pickHtml('sg_')}${PACKS.map(p => packBlock(p, 'sg_')).join('')}
+    ${REPORT_HTML('sg_')}
+    <div class="err" id="sg_err"></div>
+    <button id="sg_go">가입 신청하기</button>
+    <button class="ghost" style="margin-top:8px" onclick="loginView()">← 로그인으로</button></div>`;
+  document.getElementById('sg_go').onclick = async () => {
+    const v = id => document.getElementById(id).value, err = document.getElementById('sg_err');
+    err.textContent = '';
+    const packs = pickedPacks('sg_');
+    if (v('sg_pw') !== v('sg_pw2')) { err.textContent = '비밀번호 두 칸이 달라요'; return; }
+    if (!SG) { err.textContent = '캐릭터(남자·여자)를 골라 주세요'; return; }
+    try { const r = await rpc('rpg_join_request', {p_nick: v('sg_nick'), p_pw: v('sg_pw'), p_gender: SG, p_packs: packs, p_consents: readConsents('sg_', packs)});
+      if (r.error) { err.textContent = r.error; return; }
+      document.getElementById('app').innerHTML = `<div class="card"><h2 style="color:var(--ink);font-size:18px">신청했어요 🙌</h2>
+        <div>만든 사람이 승인하면 <b>${esc(v('sg_nick'))}</b>(으)로 로그인할 수 있어요.</div><button style="margin-top:14px" onclick="loginView()">로그인 화면으로</button></div>`;
+    } catch(e) { err.textContent = '인터넷을 확인해 주세요'; }
+  };
+};
+window.sgGender = g => { SG = g; document.getElementById('sg_m').className = g === '남' ? '' : 'ghost'; document.getElementById('sg_f').className = g === '여' ? '' : 'ghost'; };
+
+// 2) 기존 사용자 동의 창(이미 쓰던 사람: 쓸 기록 고르기 + 동의 → 만든 사람 승인 뒤 건물이 뜸)
+window.consentView = () => {
+  const s = sheet(`<h3>시작 전에 여쭤볼게요</h3>
+    <div class="small">기록을 서버에 저장해 두려고, 몇 가지만 여쭤볼게요. <a href="#" onclick="openPrivacy();return false">개인정보 처리방침 ›</a></div>
+    <div style="margin-top:10px">${ck('cv_base', '[필수] 닉네임·비밀번호·성별로 내 계정과 캐릭터를 만들어요.')}
+      <div class="small" style="margin-left:28px"><b>닉네임·비밀번호·성별을 저장해요 · 탈퇴하면 30일 안에 지워요</b></div>
+      ${ck('cv_age', '[필수] 만 14세 이상이에요.')}</div>
+    <div style="margin-top:12px;font-weight:700">쓸 기록 고르기 <span class="small mute">(만든 사람이 열어 줘요)</span></div>
+    ${pickHtml('cv_')}${PACKS.map(p => packBlock(p, 'cv_')).join('')}
+    ${REPORT_HTML('cv_')}
+    <div class="err" id="cv_err"></div><button id="cv_go">동의하고 시작하기</button>
+    <button class="ghost" style="margin-top:8px" onclick="logout()">로그아웃</button>`);
+  s.onclick = null;   // 바깥을 눌러도 안 닫힘(동의 전)
+  document.getElementById('cv_go').onclick = async () => {
+    const err = document.getElementById('cv_err'), packs = pickedPacks('cv_'), c = readConsents('cv_', packs);
+    err.textContent = '';
+    if (!c.includes('기본') || !c.includes('만14세')) { err.textContent = '필수 동의에 체크해 주세요'; return; }
+    for (const k of packs) for (const n of (k === '건강' || k === '영성') ? [k, k+'_민감'] : [k])
+      if (!c.includes(n)) { err.textContent = k+' 기록 동의에 체크해 주세요'; return; }
+    try {
+      const base = c.filter(x => ['기본','만14세','보고서_읽기','보고서_AI','보고서_민감'].includes(x));   // 확장팩 동의는 rpg_pack_request가 남김
+      let r = await rpc('rpg_consent_set', {p_token: token(), p_items: base, p_agreed: true}); if (r.error) { err.textContent = r.error; return; }
+      for (const k of packs) { r = await rpc('rpg_pack_request', {p_token: token(), p_pack: k}); if (r.error) { err.textContent = r.error; return; } }
+      document.querySelectorAll('.sheet').forEach(x => x.remove());
+      toast(packs.length ? '신청했어요. 만든 사람이 열어 주면 마을에 건물이 생겨요' : '고마워요');
+      load();
+    } catch(e) { err.textContent = '인터넷을 확인해 주세요'; }
+  };
+};
+
+// 3) ⚙ 설정: 캐릭터 · 확장팩 · 보고서 동의 · 처리방침 · 탈퇴
+const ST = {open:'열림', requested:'승인 기다림', closed:'닫힘(30일 뒤 지움)', purged:'닫힘'};
+window.openSettings = () => {
+  const m = ME || {packs:{}, consents:{}};
+  const rows = [...PACKS, ...(m.owner ? [{k:'관계', icon:'👥', b:'이웃'}] : [])].map(p => {
+    const st = m.owner && !m.packs[p.k] ? 'open' : (m.packs[p.k] || '');
+    const act = st === 'open' ? (m.owner ? '' : `<button class="ghost" style="width:auto;padding:4px 10px" onclick="packClose('${p.k}')">닫기</button>`)
+      : st === 'requested' ? '' : `<button style="width:auto;padding:4px 10px" onclick="packAdd('${p.k}')">더하기</button>`;
+    return `<div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span>${p.icon} ${p.b} <span class="small mute">${ST[st]||'안 씀'}</span></span>${act}</div>`; }).join('');
+  const rc = (k, label) => `<label class="cons"><input type="checkbox" ${m.consents[k] ? 'checked' : ''} onchange="setReport('${k}', this.checked)"><span>${label}</span></label>`;
+  sheet(`<h3>⚙ 설정</h3>
+    <div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span>캐릭터 ${meEmoji()}</span><button class="ghost" style="width:auto;padding:4px 10px" onclick="askGender()">바꾸기</button></div>
+    <div style="margin-top:12px;font-weight:700">확장팩</div>${rows}
+    ${m.owner ? '' : `<div style="margin-top:12px;font-weight:700">성장 보고서 <span class="small mute">선택</span></div>
+      ${rc('보고서_읽기', '만든 사람이 읽고 성장 보고서를 만들어 드려요')}
+      ${rc('보고서_AI', '보고서를 만들 때 미국의 AI 회사 Anthropic으로 보내요')}
+      ${rc('보고서_민감', '건강·신앙 기록도 보고서에 넣어요')}`}
+    <div class="small" style="margin-top:14px"><a href="#" onclick="openPrivacy();return false">개인정보 처리방침</a> · 문의 ryong.office@gmail.com</div>
+    ${m.owner ? '' : `<button class="ghost" style="margin-top:16px;color:#b33" onclick="leaveAsk()">탈퇴하기</button>`}
+    <button class="ghost" style="margin-top:8px" onclick="closeSheet()">닫기</button>`);
+};
+window.setReport = async (k, on) => {
+  try { const r = await rpc('rpg_consent_set', {p_token: token(), p_items: [k], p_agreed: on}); if (r.error) return toast(r.error);
+    ME.consents[k] = on; toast(on ? '켰어요' : '껐어요. 보고서에 쓰지 않아요'); } catch(e) { toast('인터넷을 확인해 주세요'); }
+};
+window.packAdd = k => {
+  const p = PACKS.find(x => x.k === k) || {k, icon:'👥', b:'이웃', main:'통화·메모를 저장해요.', what:'통화 기록·사람 메모'};
+  const s = sheet(`<h3>${p.icon} ${p.b} 더하기</h3>${packBlock(p, 'pa_')}<div class="err" id="pa_err"></div>
+    <button id="pa_go">${ME && ME.owner ? '열기' : '동의하고 신청하기'}</button><button class="ghost" style="margin-top:8px" onclick="openSettings()">← 설정</button>`);
+  s.querySelector('#pa_box_'+k).style.display = '';
+  document.getElementById('pa_go').onclick = async () => {
+    const c = readConsents('pa_', [k]), need = (k === '건강' || k === '영성') ? [k, k+'_민감'] : [k];
+    if (!(ME && ME.owner) && !need.every(n => c.includes(n))) { document.getElementById('pa_err').textContent = '동의에 체크해 주세요'; return; }
+    try { const r = await rpc('rpg_pack_request', {p_token: token(), p_pack: k}); if (r.error) return toast(r.error);
+      document.querySelectorAll('.sheet').forEach(x => x.remove()); toast(ME && ME.owner ? '열었어요' : '신청했어요. 승인되면 건물이 생겨요'); load(); }
+    catch(e) { toast('인터넷을 확인해 주세요'); }
+  };
+};
+window.packClose = k => {
+  const p = PACKS.find(x => x.k === k);
+  const s = sheet(`<h3>${p.icon} ${p.b} 닫기</h3><div>${ME && ME.rpg_only ? `닫으면 마을에서 ${p.b}이 사라지고, <b>30일 뒤 ${p.k} 기록을 모두 지워요.</b> 30일 안에 다시 열면 그대로 남아 있어요.` : `닫으면 마을에서 ${p.b}이 사라져요. 원래 쓰던 기록 앱의 기록은 그대로 있어요.`}</div>
+    <button style="margin-top:14px;background:#b33" id="pc_go">닫기</button><button class="ghost" style="margin-top:8px" onclick="openSettings()">← 설정</button>`);
+  document.getElementById('pc_go').onclick = async () => {
+    try { const r = await rpc('rpg_pack_close', {p_token: token(), p_pack: k}); if (r.error) return toast(r.error);
+      document.querySelectorAll('.sheet').forEach(x => x.remove()); toast('닫았어요'); load(); } catch(e) { toast('인터넷을 확인해 주세요'); }
+  };
+};
+window.leaveAsk = () => {
+  sheet(`<h3>탈퇴하기</h3><div>탈퇴하면 바로 로그아웃되고, 다시 로그인할 수 없어요.${ME && ME.rpg_only ? ' <b>30일 뒤 계정과 모든 기록을 지워요.</b>' : ' 라이프 RPG 쪽 정보만 30일 뒤 지우고, 원래 쓰던 기록 앱의 계정·기록은 그대로예요.'}</div>
+    <button style="margin-top:14px;background:#b33" onclick="leaveGo()">탈퇴</button><button class="ghost" style="margin-top:8px" onclick="openSettings()">← 설정</button>`);
+};
+window.leaveGo = async () => {
+  try { const r = await rpc('rpg_leave', {p_token: token()}); if (r.error) return toast(r.error);
+    document.querySelectorAll('.sheet').forEach(x => x.remove()); setToken(''); ME = null; loginView(); toast('탈퇴했어요'); } catch(e) { toast('인터넷을 확인해 주세요'); }
+};
+
+// 4) 주인(룡): 📮 신청 — 가입·확장팩 승인
+window.openJoins = async () => {
+  const s = sheet('<h3>📮 신청</h3><div class="mute small">불러오는 중…</div>');
+  let r; try { r = await rpc('rpg_join_list', {p_token: token()}); } catch(e) { s.querySelector('.in').innerHTML = '<h3>📮 신청</h3>인터넷을 확인해 주세요'; return; }
+  if (r.error) { s.querySelector('.in').innerHTML = '<h3>📮 신청</h3>'+esc(r.error); return; }
+  const rep = c => ['보고서_읽기','보고서_AI','보고서_민감'].filter(x => c.includes(x)).map(x => x.replace('보고서_','')).join('·') || '안 함';
+  const joins = r.joins.map(j => `<div class="card" style="margin:8px 0;padding:12px">
+      <div><b>${esc(j.nick)}</b> ${j.gender === '여' ? '🧍‍♀️' : '🧍‍♂️'} <span class="small mute">${esc(String(j.at).slice(5,16).replace('T',' '))}</span></div>
+      <div class="small">만 14세 이상 ✓ · 보고서: ${rep(j.consents)}</div>
+      <div class="row" style="flex-wrap:wrap;gap:6px;margin:6px 0">${j.packs.map(k => `<label class="chip"><input type="checkbox" class="jp_${j.id}" value="${k}" checked> ${k}</label>`).join('')}</div>
+      <div class="row" style="gap:8px"><button style="flex:1" onclick="joinDecide('${j.id}', true)">승인</button><button class="ghost" style="flex:1" onclick="joinDecide('${j.id}', false)">거절</button></div>
+      <div class="small mute" style="margin-top:4px">만 14세 미만으로 보이면 승인하지 않아요</div></div>`).join('');
+  const packs = r.packs.map(p => `<div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)">
+      <span><b>${esc(p.nick)}</b> · ${esc(p.pack)}</span><span><button style="width:auto;padding:4px 10px" onclick="packDecide('${p.member}','${p.pack}',true)">열기</button>
+      <button class="ghost" style="width:auto;padding:4px 10px" onclick="packDecide('${p.member}','${p.pack}',false)">거절</button></span></div>`).join('');
+  s.querySelector('.in').innerHTML = `<h3>📮 신청</h3>${joins || ''}${packs ? '<div style="margin-top:10px;font-weight:700">확장팩</div>'+packs : ''}${!joins && !packs ? '<div class="mute">기다리는 신청이 없어요</div>' : ''}
+    <button class="ghost" style="margin-top:12px" onclick="closeSheet()">닫기</button>`;
+};
+window.joinDecide = async (id, ok) => {
+  const packs = [...document.querySelectorAll('.jp_'+id)].filter(e => e.checked).map(e => e.value);
+  if (ok && !packs.length) return toast('열어 줄 기록을 하나 이상 골라 주세요');
+  try { const r = await rpc('rpg_join_decide', {p_token: token(), p_id: id, p_ok: ok, p_packs: packs}); if (r.error) return toast(r.error);
+    toast(ok ? '승인했어요' : '거절했어요'); CHANGED = true; openJoins(); } catch(e) { toast('인터넷을 확인해 주세요'); }
+};
+window.packDecide = async (m, k, ok) => {
+  try { const r = await rpc('rpg_pack_decide', {p_token: token(), p_member: m, p_pack: k, p_ok: ok}); if (r.error) return toast(r.error);
+    toast(ok ? '열었어요' : '거절했어요'); CHANGED = true; openJoins(); } catch(e) { toast('인터넷을 확인해 주세요'); }
+};
+
 function tab(t){
   CUR = t; ls.set('rpg_tab', t);
   document.getElementById('town').style.display = t === 'town' ? '' : 'none';
@@ -416,20 +625,20 @@ function town(res, h){
   const todayN = (h.tasks || []).filter(t => t.requester !== h.name || (t.due && t.due <= h.today) || ((t.remind||'').slice(0,10) && (t.remind||'').slice(0,10) <= h.today)).length;
   document.getElementById('town').innerHTML = `
     <div id="world">${SCENE}
-      ${spot(54, 38, 90, 110, 'openFather()', '영성', '아빠 집', sp.length ? sp.join('·') : '아직')}
-      ${spot(24, 57, 96, 96, 'openHome()', '건강', '집', homeSt)}
-      ${spot(78, 68, 96, 80, 'openWallet()', '재정', '시장', h.fin_today ? '오늘 '+h.fin_today+'건' : '돈 썼을 때')}
-      ${spot(16.5, 76, 80, 60, "soon('퀘스트')", null, '게시판', '퀘스트')}
-      ${spot(82, 44, 80, 70, 'openRel()', '관계', '이웃', '통화·메모')}
+      ${has('영성') ? spot(54, 38, 90, 110, 'openFather()', '영성', '아빠 집', sp.length ? sp.join('·') : '아직') : ''}
+      ${has('건강') ? spot(24, 57, 96, 96, 'openHome()', '건강', '집', homeSt) : ''}
+      ${has('재정') ? spot(78, 68, 96, 80, 'openWallet()', '재정', '시장', h.fin_today ? '오늘 '+h.fin_today+'건' : '돈 썼을 때') : ''}
+      ${has('업무') ? spot(16.5, 76, 80, 60, "soon('퀘스트')", null, '게시판', '퀘스트') : ''}
+      ${has('관계') ? spot(82, 44, 80, 70, 'openRel()', '관계', '이웃', '통화·메모') : ''}
       <div class="me">${meEmoji()}</div></div>
     <div class="hud top">
-      <div class="glass lvb"><b>Lv ${cl}</b><div class="bar"><i style="width:${Math.round(cp*100)}%"></i></div></div>
+      <div class="glass lvb"><b>Lv ${cl}</b><div class="bar"><i style="width:${Math.round(cp*100)}%"></i></div>${ME && ME.pending ? `<span onclick="openJoins()" style="margin-left:auto;background:#c8553d;color:#fff;border-radius:10px;padding:2px 8px;font-size:12px">📮 신청 ${ME.pending}</span>` : ''}</div>
       <div class="glass evs">${evHtml}</div>
     </div>
     <div class="hud bot">
       <button class="act q" onclick="soon('퀘스트')">📜 퀘스트<small>돌파할 것</small></button>
       <button class="act s" onclick="soon('상점')">🏪 상점<small>위시리스트</small></button>
-      <button class="act c" onclick="openToday()">📋 오늘<small style="color:var(--mute)">할 일 ${todayN}</small></button>
+      <button class="act c" onclick="openToday()">📋 오늘<small style="color:var(--mute)">${has('업무') ? '할 일 '+todayN : '일정'}</small></button>
     </div>`;
   const ts = document.getElementById('todaySheet');
   if (ts) ts.querySelector('.in').innerHTML = todayCard(h, res) + TAIL;
@@ -464,7 +673,7 @@ function todayCard(h, res){
         rows.push(r);
       } }
   }
-  for (const t of h.tasks) {
+  for (const t of (has('업무') ? h.tasks : [])) {
     const due = t.due || '', remind = t.remind || '', rday = remind.slice(0,10);
     const r = {kind:'task', id: t.id, title: (t.important ? '★ ' : '') + t.title, mine: t.requester === me, company: t.company};
     if (!r.mine) { const w = due || rday; r.sub = (t.requester ? t.requester+' 요청' : '') + (w ? ' · '+md(w)+'까지' : ''); r.late = w && w < t0; asked.push(r); continue; }
@@ -493,7 +702,7 @@ function todayCard(h, res){
   // 업무 기록 위젯의 핵심 줄(2026-11-12 룡): ＋ 할 일 · 맡기기 · 요청받은 일 · 확인할 일
   const N = window.Native || {};
   // 순서(2026-11-12 룡): 요청 · 확인 · 맡기기 · ＋ 할 일(맨 오른쪽)
-  const bar = `<div class="tbar"><b class="warn" onclick="${N.openTodo ? 'Native.openTodo()' : ''}">요청 ${asked.length}</b><b class="ok" onclick="${N.openTodo ? 'Native.openTodo()' : ''}">확인 ${h.to_check || 0}</b>
+  const bar = !has('업무') ? '' : `<div class="tbar"><b class="warn" onclick="${N.openTodo ? 'Native.openTodo()' : ''}">요청 ${asked.length}</b><b class="ok" onclick="${N.openTodo ? 'Native.openTodo()' : ''}">확인 ${h.to_check || 0}</b>
     <b onclick="${N.todoAssign ? 'Native.todoAssign()' : ''}">맡기기</b><b onclick="${N.todoAdd ? 'Native.todoAdd()' : ''}">＋ 할 일</b></div>`;
   return `<div class="card today2"><h2>오늘 ${md(t0)} (${dw}) <span class="small" style="float:right">끝냄 ${h.tasks_done_today}</span></h2>${bar}${askedHtml}${calNote}${body}${looseHtml}</div>`;
 }
@@ -639,13 +848,13 @@ const BIBLE = [['구약',[['창세기',50],['출애굽기',40],['레위기',27],
   ['베드로전서',5],['베드로후서',3],['요한일서',5],['요한이서',1],['요한삼서',1],['유다서',1],['요한계시록',22]]]];
 const BIBLE_ALL = BIBLE.reduce((s, [, bs]) => s + bs.reduce((t, b) => t + b[1], 0), 0);
 let BREAD = null, BOPEN = ls.get('rpg_bopen', null);
-let BROUNDS = 0; // 끝낸 통독 번 수(2026-11-16 룡 「대략 18독」)
+let BROUNDS = 0, BSTART = null, BDONE = []; // 끝낸 통독 번 수 · 이번 바퀴 시작일 · 끝낸 바퀴 기록(2026-11-16 룡)
 async function openBible(){
   const s = sheet(`<h3>📚 통독</h3><div class="mute small">불러오는 중…</div>`);
-  try { const r = await rpc('rpg_bible', {p_token: token()}); BREAD = new Set(r.read); BROUNDS = +r.rounds || 0; } catch(e) { s.querySelector('.in').innerHTML = '<h3>📚 통독</h3><div>인터넷을 확인해 주세요</div>'; return; }
+  try { const r = await rpc('rpg_bible', {p_token: token()}); BREAD = new Set(r.read); BROUNDS = +r.rounds || 0; BSTART = r.started || null; BDONE = r.done || []; } catch(e) { s.querySelector('.in').innerHTML = '<h3>📚 통독</h3><div>인터넷을 확인해 주세요</div>'; return; }
   const draw = () => {
     const pct = Math.round(BREAD.size / BIBLE_ALL * 1000) / 10;
-    let h = `<h3>📚 통독${BROUNDS ? ` <span class="small">${BROUNDS}독</span>` : ''} <span class="small mute" style="float:right">${BROUNDS ? (BROUNDS+1)+'독째 · ' : ''}${BREAD.size} / ${BIBLE_ALL}장 · ${pct}%</span></h3>
+    let h = `<h3>📚 통독${BROUNDS ? ` <span class="small">${BROUNDS}독</span>` : ''} <span class="small mute" style="float:right">${BROUNDS ? (BROUNDS+1)+'독째 · ' : ''}${BSTART ? md(BSTART)+' 시작 · ' : ''}${BREAD.size} / ${BIBLE_ALL}장 · ${pct}%</span></h3>
       <div class="bar" style="margin-bottom:10px"><i style="width:${pct}%"></i></div><div class="small mute" style="margin-bottom:6px">시편·잠언은 빼고 · 장을 누르면 체크</div>`;
     for (const [part, books] of BIBLE) {
       h += `<h2 style="margin:12px 0 4px">${part}</h2>`;
@@ -655,6 +864,8 @@ async function openBible(){
         if (BOPEN === b) { h += '<div class="chs">'; for (let c = 1; c <= n; c++) h += `<b class="${BREAD.has(b+' '+c)?'on':''}" data-c="${c}">${c}</b>`; h += '</div>'; }
       }
     }
+    // 끝낸 바퀴(다 채우면 저절로 남고 새 바퀴는 창세기 1장부터, 2026-11-16 룡)
+    if (BDONE.length) h += `<h2 style="margin:16px 0 4px">지난 통독</h2>` + BDONE.map(d => `<div class="small">${d.round}독 · ${d.started ? md(d.started)+' ~ ' : ''}${md(d.finished)}</div>`).join('');
     const top = s.querySelector('.in').scrollTop;
     s.querySelector('.in').innerHTML = h;
     s.querySelector('.in').scrollTop = top;
@@ -662,7 +873,9 @@ async function openBible(){
     s.querySelectorAll('.chs b').forEach(x => x.onclick = async () => {
       const ref = BOPEN + ' ' + x.dataset.c, on = !BREAD.has(ref);
       on ? BREAD.add(ref) : BREAD.delete(ref); draw();
-      try { const r = await rpc('rpg_bible_toggle', {p_token: token(), p_ref: ref, p_on: on}); if (r.error) throw 0; }
+      try { const r = await rpc('rpg_bible_toggle', {p_token: token(), p_ref: ref, p_on: on}); if (r.error) throw 0;
+        // 한 바퀴를 다 채움: 기록이 남고 새 바퀴는 창세기 1장부터
+        if (r.finished) { toast(r.finished + '독 끝! 다시 창세기부터'); BOPEN = null; ls.set('rpg_bopen', null); CHANGED = true; return openBible(); } }
       catch(e) { on ? BREAD.delete(ref) : BREAD.add(ref); draw(); toast('저장하지 못했어요'); return; }
       CHANGED = true;
     });
