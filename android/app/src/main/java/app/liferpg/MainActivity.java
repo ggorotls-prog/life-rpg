@@ -74,6 +74,12 @@ public class MainActivity extends Activity {
         Daily.schedule(this);
         Daily.Job.schedule(this);
         HealthReminder.schedule(this);
+        // 업무 기록: 알림 칸·15분 확인·바로 오는 알림, RPG 로그인으로 업무 기록 로그인 받아 두기(위젯·알림용)
+        app.recordkit.work.Work.start(this);
+        WorkApp.SignIn.ensure(this);
+        // 영성 기록: 묵상 알림 다시 맞추기, RPG 로그인으로 영성 기록 로그인 받아 두기(작은 적기 창·위젯용)
+        app.recordkit.spirit.Spirit.start(this);
+        SpiritApp.SignIn.ensure(this);
         take(getIntent());
         if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
@@ -89,6 +95,10 @@ public class MainActivity extends Activity {
         if ("home".equals(i.getStringExtra(EXTRA_OPEN))) { openHealth(); return; }
         // 👛 장부 = 재정 기록 화면(WalletActivity)
         if ("ledger".equals(i.getStringExtra(EXTRA_OPEN))) { openLedger(); return; }
+        // 📋 업무 기록 화면(요청·확인 = 업무 기록 앱 그 자체, 2026-11-16). 가상 폰 시험도 이 길로 연다
+        if ("work".equals(i.getStringExtra(EXTRA_OPEN))) { startActivity(WorkApp.screen(this, false)); return; }
+        // ⛪ 영성 기록 화면(묵상 탭)
+        if ("spirit".equals(i.getStringExtra(EXTRA_OPEN))) { startActivity(SpiritApp.screen(this, "묵상")); return; }
         openWhat = i.getStringExtra(EXTRA_OPEN);
     }
 
@@ -257,17 +267,8 @@ public class MainActivity extends Activity {
         // 👛 장부 전체 = 재정 기록 화면 그 자체(WalletActivity, 2026-11-15)
         @JavascriptInterface public void openLedger() { MainActivity.this.openLedger(); }
 
-        // 아빠 집: 영성 기록 앱의 그 탭(묵상·일기·가정예배)으로 연다. 오늘 날짜로 열린다(영성 기록 앱 EXTRA_TAB)
-        @JavascriptInterface public void openSpirit(String tab) {
-            runOnUiThread(() -> {
-                Intent i = new Intent().setClassName("app.personalrecord", "app.personalrecord.MainActivity")
-                        .putExtra("tab", tab).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                try { startActivity(i); }
-                catch (Exception e) {
-                    try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://personal-record-alpha.vercel.app/?tab=" + Uri.encode(tab)))); } catch (Exception ignored) {}
-                }
-            });
-        }
+        // 아빠 집: 영성 기록의 그 탭(묵상·일기·가정예배)을 오늘 날짜로. 2026-11-16부터 이 앱 안의 영성 기록 화면 그 자체(원본 한 벌 spiritkit)
+        @JavascriptInterface public void openSpirit(String tab) { open(SpiritApp.screen(MainActivity.this, tab)); }
 
         // 묵상 이미지 공유: 사진(Pictures/라이프 RPG)에 저장하고 그 사진을 공유 창으로(카톡 등)
         @JavascriptInterface public void shareImage(String dataUrl, String name) {
@@ -289,20 +290,16 @@ public class MainActivity extends Activity {
         }
 
         // 업무 기록의 ＋ 할 일 적기 창 / 맡기기 창(업무 기록 위젯과 같은 창)
-        @JavascriptInterface public void todoAdd() { Intent i = Widget.todoIntent(MainActivity.this, "QuickAddActivity", null); if (i != null) open(i); else openTodo(); }
-        @JavascriptInterface public void todoAssign() { Intent i = Widget.todoIntent(MainActivity.this, "MainActivity", "assign"); if (i != null) open(i); else openTodo(); }
+        // 업무 기록의 ＋ 할 일 적기 창 / 맡기기 창 = 업무 기록 위젯과 같은 창. 2026-11-16부터 이 앱 안의 같은 창(원본 한 벌 workkit)
+        @JavascriptInterface public void todoAdd() { open(WorkApp.quick(MainActivity.this)); }
+        @JavascriptInterface public void todoAssign() { open(WorkApp.screen(MainActivity.this, true)); }
 
-        // 업무 기록 앱을 연다(요청받은 일·새 할 일)
-        @JavascriptInterface public void openTodo() {
-            runOnUiThread(() -> {
-                Intent i = getPackageManager().getLaunchIntentForPackage("app.todohub");
-                if (i == null) i = new Intent(Intent.ACTION_VIEW, Uri.parse("https://todo--hub.vercel.app"));
-                try { startActivity(i); } catch (Exception ignored) {}
-            });
-        }
+        // 업무 기록 화면(요청받은 일·확인·새 할 일) = 업무 기록 앱 그 자체(WorkApp.Screen)
+        @JavascriptInterface public void openTodo() { open(WorkApp.screen(MainActivity.this, false)); }
 
-        // 아빠 집: 영성 기록 앱을 연다(없으면 사이트)
+        // 아빠 집: 영성 기록을 연다(2026-11-16부터 이 앱 안의 영성 기록 화면). 다른 앱은 그 앱(없으면 사이트)
         @JavascriptInterface public void openApp(String pkg, String url) {
+            if (app.recordkit.spirit.Spirit.STANDALONE.equals(pkg)) { open(SpiritApp.screen(MainActivity.this, null)); return; }
             runOnUiThread(() -> {
                 Intent i = getPackageManager().getLaunchIntentForPackage(pkg);
                 if (i == null) i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 파일 넘기기(FileProvider ${applicationId}.files) 하나를 두 원본이 같이 쓴다:
+     🏠 건강 기록 사진 찍기(healthkit health_files = cam/) · ⛪ 영성 기록 묵상 이미지 공유(spiritkit spirit_files = share/). 원본 xml이 바뀌면 여기도 -->
+<paths>
+    <cache-path name="cam" path="cam/" />
+    <cache-path name="share" path="share/" />
+</paths>

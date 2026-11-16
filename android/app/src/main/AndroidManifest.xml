@@ -12,6 +12,18 @@
     <!-- 스스로 업데이트(기록 앱과 같은 방식) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+    <!-- 📋 업무 기록(2026-11-16, 업무 기록 앱과 같은 권한): 할 일 알림 시간에 정확히 울리기 · 위젯 🎙 녹음 · 통화 녹음 파일 가져오기 -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- ⛪ 영성 기록(2026-11-16, 영성 기록 앱과 같은 권한): 7up 7분 타이머 알람 소리·진동 -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- 아빠 집: 영성 기록 앱을 열려면 그 앱이 보여야 한다(안드로이드 11+) -->
     <queries>
@@ -23,6 +35,7 @@
     </queries>
 
     <application
+        android:name=".App"
         android:label="라이프 RPG"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
@@ -124,13 +137,117 @@
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/fin_widget_info" />
         </receiver>
 
-        <!-- 건강 기록 사진 찍기(카메라가 찍은 파일 넘겨받기) -->
+        <!-- 📋 업무 기록 = 업무 기록 앱 그 자체(2026-11-16). 원본 한 벌 workkit, 설정은 업무 기록 앱 manifest와 같게 -->
+        <activity
+            android:name=".WorkApp$Screen"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity="app.liferpg.work"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+        <!-- ＋ 할 일 적기 작은 창. exported라 One hand 제스처에서 바로 열 수 있다 -->
+        <activity
+            android:name=".WorkApp$Quick"
+            android:exported="true"
+            android:label="할 일 적기"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:windowSoftInputMode="stateAlwaysVisible|adjustResize"
+            android:theme="@style/WorkQuickAdd" />
+        <activity
+            android:name=".WorkApp$Confirm"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <receiver android:name=".WorkApp$TaskWidget" android:exported="false" android:label="내 할 일">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/work_task_widget_info" />
+        </receiver>
+        <service android:name=".WorkApp$TaskList" android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+        <receiver android:name=".WorkApp$CalWidget" android:exported="false" android:label="오늘 일정·할 일">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/work_cal_widget_info" />
+        </receiver>
+        <service android:name=".WorkApp$CalList" android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+        <activity
+            android:name=".WorkApp$CalOpen"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <!-- 할 일 알림 시간·하루 알림, 재부팅 뒤 다시 걸기(업무 기록 앱이 같이 깔려 있으면 알림은 그 앱만) -->
+        <receiver android:name=".WorkApp$Alarm" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+        <service android:name=".WorkApp$Sync" android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+        <receiver android:name=".WorkApp$RecordAlert" android:exported="false" />
+        <activity
+            android:name=".WorkApp$RecordStart"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/WorkQuickAdd" />
+        <service android:name=".WorkApp$Record" android:exported="false"
+            android:foregroundServiceType="microphone" />
+        <service android:name=".WorkApp$RecordUpload" android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+        <service android:name=".WorkApp$Push" android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- ⛪ 아빠 집 영성 기록 = 영성 기록 앱 그 자체(2026-11-16). 원본 한 벌 spiritkit, 설정은 영성 기록 앱 manifest와 같게 -->
+        <activity
+            android:name=".SpiritApp$Screen"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity="app.liferpg.spirit"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+        <!-- 감사·칭찬·SOC·기도제목 작은 적기 창. exported라 One hand 제스처에서 바로 열 수 있다 -->
+        <activity
+            android:name=".SpiritApp$Quick"
+            android:exported="true"
+            android:label="영성 기록 적기"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:windowSoftInputMode="stateAlwaysVisible|adjustResize"
+            android:theme="@style/SpiritQuickAdd" />
+        <receiver android:name=".SpiritApp$Widget" android:exported="false" android:label="영성 기록">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/spirit_widget_info" />
+        </receiver>
+        <!-- 묵상 알림 시각 + 7분 타이머 + 폰 켤 때 다시 맞추기(영성 기록 앱이 같이 깔려 있으면 묵상 알림은 그 앱만) -->
+        <receiver android:name=".SpiritApp$Reminder" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <service android:name=".SpiritApp$TimerRing" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+
+        <!-- 파일 넘기기: 건강 기록 사진 찍기(카메라가 찍은 파일 넘겨받기) · 영성 기록 묵상 이미지 공유. 길은 rpg_files에 둘 다 -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"
             android:exported="false"
             android:grantUriPermissions="true">
-            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/health_files" />
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/rpg_files" />
         </provider>
     </application>
 </manifest>

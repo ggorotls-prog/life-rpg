@@ -94,25 +94,15 @@ public class Widget extends AppWidgetProvider {
         android.content.SharedPreferences p = ctx.getSharedPreferences("rpg-widget", Context.MODE_PRIVATE);
         v.setTextViewText(R.id.tAsked, "요청 " + p.getInt("asked", 0));
         v.setTextViewText(R.id.tCheck, "확인 " + p.getInt("check", 0));
-        Intent add = todoIntent(ctx, "QuickAddActivity", null);
-        Intent assign = todoIntent(ctx, "MainActivity", "assign");
-        Intent app = todoIntent(ctx, "MainActivity", null);
+        // 2026-11-16: 업무 기록 앱이 없어도 되게 이 앱 안의 같은 창(원본 한 벌 workkit)
+        Intent add = WorkApp.quick(ctx);
+        Intent assign = WorkApp.screen(ctx, true);
+        Intent app = WorkApp.screen(ctx, false);
         int f = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
-        if (add != null) v.setOnClickPendingIntent(R.id.tPlus, PendingIntent.getActivity(ctx, 80, add, f));
-        if (assign != null) v.setOnClickPendingIntent(R.id.tAssign, PendingIntent.getActivity(ctx, 81, assign, f));
-        if (app != null) {
-            v.setOnClickPendingIntent(R.id.tAsked, PendingIntent.getActivity(ctx, 82, app, f));
-            v.setOnClickPendingIntent(R.id.tCheck, PendingIntent.getActivity(ctx, 83, app, f));
-        }
-    }
-
-    // 업무 기록 앱(app.todohub)의 창. 없으면 null. flag = MainActivity에 켤 기능(assign = 맡기기 창)
-    static Intent todoIntent(Context ctx, String cls, String flag) {
-        try { ctx.getPackageManager().getPackageInfo("app.todohub", 0); } catch (Exception e) { return null; }
-        Intent i = new Intent().setClassName("app.todohub", "app.todohub." + cls)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
-        if (flag != null) i.putExtra(flag, true);
-        return i;
+        v.setOnClickPendingIntent(R.id.tPlus, PendingIntent.getActivity(ctx, 80, add, f));
+        v.setOnClickPendingIntent(R.id.tAssign, PendingIntent.getActivity(ctx, 81, assign, f));
+        v.setOnClickPendingIntent(R.id.tAsked, PendingIntent.getActivity(ctx, 82, app, f));
+        v.setOnClickPendingIntent(R.id.tCheck, PendingIntent.getActivity(ctx, 83, app, f));
     }
 
     // 지갑 = 재정 기록 빠른 기록 창(재정 위젯 − 지출과 같은 창: 금액 → 가정/기업 → 항목 → 저장, 2026-11-12 룡 「재정기록 위젯이랑 동일하게」).

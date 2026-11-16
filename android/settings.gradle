@@ -12,3 +12,9 @@ include ':healthkit'
 project(':healthkit').projectDir = file('ext/life-room/android/healthkit')
 include ':finkit'
 project(':finkit').projectDir = file('ext/faith-budget/android/finkit')
+// 📋 업무 기록(greenjui-calls, 비공개라 읽기 전용 열쇠로 받음) workkit
+include ':workkit'
+project(':workkit').projectDir = file('ext/greenjui-calls/android/workkit')
+// ⛪ 영성 기록(personal-record, 비공개라 읽기 전용 열쇠로 받음) spiritkit
+include ':spiritkit'
+project(':spiritkit').projectDir = file('ext/personal-record/android/spiritkit')

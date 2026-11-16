@@ -33,9 +33,8 @@ public class WidgetAction extends Activity {
             return;
         }
         if (i.hasExtra(EXTRA_TASK) && !i.getBooleanExtra(EXTRA_MINE, true)) {
-            Intent t = getPackageManager().getLaunchIntentForPackage("app.todohub");
-            if (t == null) t = new Intent(Intent.ACTION_VIEW, Uri.parse("https://todo--hub.vercel.app"));
-            try { startActivity(t.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); } catch (Exception ignored) {}
+            // 요청받은 일 = 업무 기록 화면(이 앱 안, 2026-11-16)
+            try { startActivity(WorkApp.screen(this, false)); } catch (Exception ignored) {}
             finish();
             return;
         }
