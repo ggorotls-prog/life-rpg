@@ -223,7 +223,7 @@ function applyPeaks(res, peaks){
 }
 
 // ===== 화면 =====
-const ITEM = {'할 일 끝냄':'할 일 끝냄','기상':'기상','취침':'취침','운동':'운동','식단':'식단','오운완':'오운완','묵상':'묵상','SOC':'SOC','감사':'감사','칭찬':'칭찬','일기':'일기','가정 장부':'가정 장부','기업 장부':'기업 장부','통화':'통화','메모':'메모','카톡 1:1':'카톡 1:1'};
+const ITEM = {'할 일 끝냄':'할 일 끝냄','기상':'기상','취침':'취침','운동':'운동','식단':'식단','오운완':'오운완','묵상':'묵상','SOC':'SOC','감사':'감사','칭찬':'칭찬','순종':'순종','깨달음':'깨달음','일기':'일기','가정 장부':'가정 장부','기업 장부':'기업 장부','통화':'통화','메모':'메모','카톡 1:1':'카톡 1:1'};
 function itemsText(it){ return Object.entries(it).map(([k,n]) => (ITEM[k]||k) + (n > 1 ? ' '+n : '')).join(' · '); }
 
 function radar(res){
@@ -602,6 +602,7 @@ window.openFather = async () => {
   const btn = (k, ic, sub) => `<div class="tile sm" data-k="${k}">${n(k) ? `<span class="got">${k==='묵상'||k==='일기' ? '✓' : n(k)}</span>` : ''}<div class="ic">${ic}</div><div class="nm">${k}</div><div class="st">${sub}</div></div>`;
   s.querySelector('.in').innerHTML = `<h3>⛪ 아빠 집</h3><div class="town3">
     ${btn('묵상','📖', n('묵상') ? '오늘 했어요' : '아직')}${btn('감사','🙏', n('감사') ? n('감사')+'개' : '적기')}${btn('칭찬','👏', n('칭찬') ? n('칭찬')+'개' : '적기')}
+    ${btn('순종','🙌', n('순종') ? n('순종')+'개' : '한 것 적기')}${btn('깨달음','💡', n('깨달음') ? n('깨달음')+'개' : '적기')}
     ${btn('SOC','🏫', n('SOC') ? n('SOC')+'개' : '적기')}${btn('일기','📝', n('일기') ? '이어 쓰기' : '쓰기')}
     ${btn('통독','📚', n('통독') ? '오늘 '+n('통독')+'장' : '체크표')}${btn('기도','🕊', prayStart() ? '기도 중' : n('기도') ? '오늘 '+prayMin()+'분' : '시작')}</div>
     <div class="small mute">기록은 영성 기록과 같은 곳에 쌓여요</div>`;
@@ -732,11 +733,14 @@ async function drawMeditation(d){
   return c.toDataURL('image/png');
 }
 
-// 🙏 감사 · 👏 칭찬 · 🏫 SOC: 적는 칸 + 오늘 적은 것
+// 🙏 감사 · 👏 칭찬 · 🏫 SOC · 🙌 순종 · 💡 깨달음: 적는 칸 + 오늘 적은 것
+// 순종·깨달음(2026-11-16 룡 「묵상은 아침에 앉아서 시작하지만 순종한 것은 하루 중에 수집되는 거야. 깨달음도」): 하루 중 생길 때마다 한 줄. 순종은 오늘 묵상 「순종할 것」을 위에 보여 준다
 function openFw(k){
-  const ic = {감사:'🙏', 칭찬:'👏', SOC:'🏫'}[k];
-  const ph = {감사:'감사한 것', 칭찬:'무엇을 칭찬할까요', SOC:'있었던 일과 내 반응'}[k];
+  const ic = {감사:'🙏', 칭찬:'👏', SOC:'🏫', 순종:'🙌', 깨달음:'💡'}[k];
+  const ph = {감사:'감사한 것', 칭찬:'무엇을 칭찬할까요', SOC:'있었던 일과 내 반응', 순종:'무엇을 했나요 (예: 점심 먹고 말씀 두 장 읽음)', 깨달음:'오늘 주신 깨달음'}[k];
+  const obey = k === '순종' ? spOf('묵상').map(m => m.obey).filter(Boolean) : [];
   const s = sheet(`<h3>${ic} ${k}</h3>
+    ${k === '순종' ? (obey.length ? `<div class="small" style="margin-bottom:8px">📖 오늘 묵상 순종할 것<div style="margin-top:4px">${obey.map(esc).join('<br>')}</div></div>` : `<div class="small mute" style="margin-bottom:8px">오늘 묵상이 아직 없어요. 한 것만 적어도 돼요</div>`) : ''}
     ${k === '칭찬' ? `<input id="tg" placeholder="누구를"><div class="chips">${(SP.targets||[]).map(t => `<span class="chip" data-t="${esc(t)}">${esc(t)}</span>`).join('')}</div>` : ''}
     <textarea id="tx" rows="3" placeholder="${ph}" style="width:100%;font:inherit;padding:12px;border:1px solid var(--line);border-radius:10px"></textarea>
     ${k === 'SOC' ? `<textarea id="ln" rows="2" placeholder="배운 것 (없으면 비워 두고 나중에)" style="width:100%;font:inherit;padding:12px;border:1px solid var(--line);border-radius:10px;margin-top:6px"></textarea>` : ''}
@@ -761,7 +765,7 @@ function openFw(k){
   list();
   s.querySelector('#go').onclick = async () => {
     const tx = s.querySelector('#tx').value.trim(), err = s.querySelector('#err');
-    if (!tx) { err.textContent = {감사:'감사한 것을 적어 주세요', 칭찬:'무엇을 칭찬할지 적어 주세요', SOC:'있었던 일을 적어 주세요'}[k]; return; }
+    if (!tx) { err.textContent = {감사:'감사한 것을 적어 주세요', 칭찬:'무엇을 칭찬할지 적어 주세요', SOC:'있었던 일을 적어 주세요', 순종:'한 것을 적어 주세요', 깨달음:'깨달은 것을 적어 주세요'}[k]; return; }
     const args = {p_token: token(), p_kind: k, p_text: tx};
     if (k === '칭찬') args.p_target = s.querySelector('#tg').value.trim();
     if (k === 'SOC') args.p_learned = s.querySelector('#ln').value.trim();
@@ -777,7 +781,11 @@ function openFw(k){
 // 📝 일기: 오늘 일기(있으면 이어서 고침)
 function openDiary(){
   const cur = spOf('일기')[0];
+  // 오늘 모인 것(순종·깨달음·감사·칭찬·SOC)을 일기 위에 보여 준다: 일기 쓸 때 보고 쓰게(2026-11-16 룡)
+  const got = [['순종','🙌'],['깨달음','💡'],['감사','🙏'],['칭찬','👏'],['SOC','🏫']]
+    .flatMap(([k, ic]) => spOf(k).map(e => `<div>${ic} ${e.target ? `<b>${esc(e.target)}</b> — ` : ''}${esc(e.body || e.situation || '')}</div>`));
   const s = sheet(`<h3>📝 오늘 일기</h3>
+    ${got.length ? `<div class="small" style="margin-bottom:8px;line-height:1.6"><div class="mute">오늘 모인 것</div>${got.join('')}</div>` : ''}
     <textarea id="tx" rows="10" placeholder="오늘 하루" style="width:100%;font:inherit;padding:12px;border:1px solid var(--line);border-radius:10px;line-height:1.6">${esc(cur ? cur.body || '' : '')}</textarea>
     <div class="err" id="err"></div><button id="go">${cur ? '고쳐 저장' : '저장'}</button>`);
   s.querySelector('#go').onclick = async () => {
