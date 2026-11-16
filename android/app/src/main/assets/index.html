@@ -89,6 +89,31 @@ select{width:100%;font:inherit;padding:11px;border:1px solid var(--line);border-
 .nowline::after{content:"";flex:1;height:1px;background:#d62d1c}
 .reward{position:fixed;left:50%;top:38%;transform:translate(-50%,0);font-size:34px;font-weight:800;color:var(--ok);z-index:12;pointer-events:none;animation:rw 1.4s ease-out forwards}
 @keyframes rw{0%{opacity:0;transform:translate(-50%,20px) scale(.8)}20%{opacity:1;transform:translate(-50%,0) scale(1.1)}100%{opacity:0;transform:translate(-50%,-60px) scale(1)}}
+/* 마을 = 게임 화면(2026-11-16 룡): 1층 마을 그림 · 2층 건물 이름표 · 3층 위 Lv·다음 일정 2개 / 아래 퀘스트·상점·오늘 */
+#world{position:fixed;left:50%;top:50%;width:max(100vw,50vh);height:max(200vw,100vh);transform:translate(-50%,-50%);z-index:0}
+#world svg{position:absolute;inset:0;width:100%;height:100%}
+.spot{position:absolute;transform:translate(-50%,-50%);text-align:center;cursor:pointer}
+.spot .hit{margin:0 auto}
+.spot .lb{display:inline-block;margin-top:2px;background:rgba(255,255,255,.93);border-radius:10px;padding:3px 9px;font-size:13px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.15);white-space:nowrap}
+.spot .lb small{display:block;font-weight:500;color:var(--mute);font-size:11px}
+.spot .gx{position:absolute;right:-8px;background:var(--ok);color:#fff;font-size:11px;font-weight:800;border-radius:9px;padding:2px 7px}
+.me{position:absolute;left:50%;top:66%;transform:translate(-50%,-50%);font-size:44px;animation:bob 2.4s ease-in-out infinite;pointer-events:none}
+@keyframes bob{50%{transform:translate(-50%,-56%)}}
+.hud{position:fixed;left:12px;right:12px;z-index:2;max-width:496px;margin:0 auto}
+.hud.top{top:calc(10px + env(safe-area-inset-top))}
+.hud.bot{bottom:76px;display:flex;gap:10px}
+.glass{background:rgba(255,255,255,.95);border-radius:14px;box-shadow:0 2px 6px rgba(0,0,0,.12);padding:8px 12px;margin-bottom:8px}
+.glass.lvb{display:flex;align-items:center;gap:8px;font-weight:700;font-size:13px}
+.glass.lvb b{color:var(--brand);font-size:18px}
+.glass.evs{padding:4px 12px}
+.evl{display:flex;gap:8px;align-items:center;padding:6px 0;font-size:14px;font-weight:600}
+.evl+.evl{border-top:1px solid #eeece6}
+.evl .tt{color:var(--brand);font-size:12px;font-weight:700;white-space:nowrap;min-width:84px}
+.evl .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.evl.now .tt{color:#d62d1c}
+.act{flex:1;border:0;border-radius:16px;padding:13px 0 11px;font:inherit;font-weight:800;font-size:15px;color:#fff;box-shadow:0 3px 0 rgba(0,0,0,.2);width:auto}
+.act small{display:block;font-weight:500;font-size:11px;opacity:.9}
+.act.q{background:#d9822b}.act.s{background:#3b5b8c}.act.c{background:#fff;color:var(--ink)}
 </style>
 </head>
 <body>
@@ -333,6 +358,30 @@ function reward(txt){ const r = document.createElement('div'); r.className = 're
 const won = n => Number(n).toLocaleString('ko-KR') + '원';
 const FACE = {1:'😫', 2:'😐', 3:'😄'};
 
+const TAIL = '<div class="small mute" style="text-align:center;margin:4px 0 10px"><a href="#" onclick="openLedger();return false">📒 재정 장부 전체</a></div><button class="ghost" onclick="closeSheet()">닫기</button>';
+const SCENE = `<svg viewBox="0 0 400 800" aria-hidden="true"><defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fcdf0"/><stop offset="1" stop-color="#d7f0fb"/></linearGradient><linearGradient id="gr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9ed77a"/><stop offset="1" stop-color="#6fb85a"/></linearGradient></defs>
+<rect width="400" height="800" fill="url(#sky)"/><circle cx="330" cy="200" r="30" fill="#ffe58a"/><g fill="#fff" opacity=".9"><ellipse cx="80" cy="215" rx="38" ry="13"/><ellipse cx="108" cy="207" rx="26" ry="12"/><ellipse cx="250" cy="250" rx="30" ry="10"/></g>
+<path d="M0 330 Q100 270 200 320 T400 300 V800 H0Z" fill="#8cc96d"/><path d="M0 380 Q120 340 230 375 T400 360 V800 H0Z" fill="url(#gr)"/>
+<path d="M175 800 C190 640 150 560 205 470 C240 420 200 400 210 380 L225 380 C220 410 260 430 225 480 C175 560 220 650 235 800Z" fill="#e8d6a8"/>
+<g transform="translate(55 400)"><rect x="0" y="30" width="80" height="58" fill="#f4e1c1"/><path d="M-8 34 L40 -6 L88 34Z" fill="#c8553d"/><rect x="30" y="54" width="20" height="34" fill="#8a5a3b"/><rect x="8" y="44" width="16" height="14" fill="#bfe3f5"/><rect x="56" y="44" width="16" height="14" fill="#bfe3f5"/></g>
+<g transform="translate(270 470)"><rect x="0" y="26" width="86" height="52" fill="#fff3d6"/><path d="M-6 28 h98 l-8 -22 h-82z" fill="#2f7d5b"/><g fill="#fff"><rect x="6" y="6" width="10" height="22"/><rect x="30" y="6" width="10" height="22"/><rect x="54" y="6" width="10" height="22"/></g><rect x="12" y="44" width="62" height="18" fill="#e3b35a"/></g>
+<g transform="translate(175 250)"><rect x="8" y="50" width="64" height="60" fill="#f7f3ea"/><path d="M0 54 L40 18 L80 54Z" fill="#5b4a8b"/><rect x="34" y="-6" width="12" height="28" fill="#f7f3ea"/><rect x="37" y="-16" width="6" height="18" fill="#c9a227"/><rect x="31" y="-10" width="18" height="5" fill="#c9a227"/><rect x="30" y="80" width="20" height="30" fill="#8a5a3b"/></g>
+<g transform="translate(30 555)"><rect x="8" y="30" width="6" height="40" fill="#7a4e2d"/><rect x="58" y="30" width="6" height="40" fill="#7a4e2d"/><rect x="0" y="0" width="72" height="44" rx="4" fill="#b07a45"/><rect x="8" y="7" width="24" height="16" fill="#fff6dc"/><rect x="38" y="10" width="24" height="20" fill="#fff6dc"/></g>
+<circle cx="150" cy="560" r="16" fill="#4f9a45"/><rect x="148" y="572" width="5" height="14" fill="#7a4e2d"/><circle cx="370" cy="400" r="20" fill="#4f9a45"/><rect x="367" y="414" width="6" height="16" fill="#7a4e2d"/><circle cx="350" cy="660" r="26" fill="#58a64c"/><rect x="346" y="680" width="8" height="20" fill="#7a4e2d"/></svg>`;
+// 다음 일정 2개(2026-11-16 룡 「일정은 늘 머릿속에 → 바로 보여야」, 시간은 시작–마무리). 남의 이름표 일정·끝난 일정은 뺀다
+function nextEvents(h, n){
+  const N = window.Native; if (!N || !N.calendar) return null;
+  const raw = N.calendar(h.today); if (raw === null || raw === undefined) return null;
+  const now = Date.now(), tag = tagOf(h.name);
+  return JSON.parse(raw).filter(e => e.end > now && !others(e.title||'', tag))
+    .sort((a,b) => (b.allDay?1:0) - (a.allDay?1:0) || a.begin - b.begin).slice(0, n);
+}
+function evLine(e){
+  const now = Date.now(), t = e.allDay ? '하루 종일' : hm(e.begin) + '–' + hm(e.end);
+  return `<div class="evl${!e.allDay && e.begin <= now ? ' now' : ''}" onclick="Native.openEvent('${e.id}','${e.begin}','${e.end}')"><span class="tt">${t}</span><span class="nm">${esc(e.title || '(제목 없음)')}</span></div>`;
+}
+window.openToday = () => { const s = sheet(todayCard(HOME, RES) + TAIL); s.id = 'todaySheet'; };
+window.soon = w => toast(w + '는 다음 단계에 붙여요');
 function town(res, h){
   const cl = Math.floor(res.charShown), cp = res.charShown - cl;
   const got = a => res.areas[a].todayItems ? `<span class="got">${res.areas[a].todayXp ? '+'+res.areas[a].todayXp : '✓'}</span>` : '';
@@ -342,17 +391,30 @@ function town(res, h){
     : hh.need === 'wake' ? '아직 안 일어남'
     : hh.bed ? `일어남 ${hh.wake} · 잠 ${hh.bed}` : `일어남 ${hh.wake} ${FACE[hh.condition]||''}`;
   const sp = h.spirit_today || [];
+  const ev = nextEvents(h, 2), N = window.Native || {};
+  const evHtml = ev === null
+    ? (N.askCalendar ? `<div class="evl" onclick="Native.askCalendar()"><span class="nm">📅 눌러서 캘린더 보기를 허용해 주세요</span></div>` : `<div class="evl"><span class="nm mute">📅 일정은 앱에서 보여요</span></div>`)
+    : ev.length ? ev.map(evLine).join('') : `<div class="evl"><span class="nm mute">📅 남은 일정 없음</span></div>`;
+  const spot = (x, y, w, hgt, onc, area, name, st) => `<div class="spot" style="left:${x}%;top:${y}%" onclick="${onc}"><div class="hit" style="width:${w}px;height:${hgt}px;margin-top:-${hgt-30}px"></div>${area && res.areas[area].todayItems ? `<span class="gx" style="top:-${hgt-30}px">${res.areas[area].todayXp ? '+'+res.areas[area].todayXp : '✓'}</span>` : ''}<div class="lb">${name}<small>${st}</small></div></div>`;
+  const todayN = (h.tasks || []).filter(t => t.requester !== h.name || (t.due && t.due <= h.today) || ((t.remind||'').slice(0,10) && (t.remind||'').slice(0,10) <= h.today)).length;
   document.getElementById('town').innerHTML = `
-    <div class="mini"><span class="lv">Lv ${cl}</span><div class="bar"><i style="width:${Math.round(cp*100)}%"></i></div>
-      <span class="small mute">오늘 +${res.todayXp}</span></div>
-    <div class="town3">
-      <div class="tile sm" onclick="openHome()">${got('건강')}<div class="ic">🏠</div><div class="nm">집</div><div class="st">${homeSt}</div></div>
-      <div class="tile sm" onclick="openWallet()">${got('재정')}<div class="ic">👛</div><div class="nm">지갑</div><div class="st">${h.fin_today ? '오늘 '+h.fin_today+'건' : '돈 썼을 때'}</div></div>
-      <div class="tile sm" onclick="openFather()">${got('영성')}<div class="ic">⛪</div><div class="nm">아빠 집</div><div class="st">${sp.length ? sp.join('·')+' ✓' : '아직'}</div></div>
+    <div id="world">${SCENE}
+      ${spot(54, 38, 90, 110, 'openFather()', '영성', '아빠 집', sp.length ? sp.join('·')+' ✓' : '아직')}
+      ${spot(24, 57, 96, 96, 'openHome()', '건강', '집', homeSt)}
+      ${spot(78, 68, 96, 80, 'openWallet()', '재정', '시장', h.fin_today ? '오늘 '+h.fin_today+'건' : '돈 썼을 때')}
+      ${spot(16.5, 76, 80, 60, "soon('퀘스트')", null, '게시판', '퀘스트')}
+      <div class="me">🧍</div></div>
+    <div class="hud top">
+      <div class="glass lvb"><b>Lv ${cl}</b><div class="bar"><i style="width:${Math.round(cp*100)}%"></i></div><span style="color:var(--ok)">오늘 +${res.todayXp}</span></div>
+      <div class="glass evs">${evHtml}</div>
     </div>
-    <div class="small mute" style="text-align:center;margin:-4px 0 12px"><a href="#" onclick="openLedger();return false">📒 재정 장부 전체</a></div>
-    ${todayCard(h, res)}
-    <div class="small mute" style="text-align:center">관계(통화·카톡)는 자동으로 들어와요</div>`;
+    <div class="hud bot">
+      <button class="act q" onclick="soon('퀘스트')">📜 퀘스트<small>돌파할 것</small></button>
+      <button class="act s" onclick="soon('상점')">🏪 상점<small>위시리스트</small></button>
+      <button class="act c" onclick="openToday()">📋 오늘<small style="color:var(--mute)">할 일 ${todayN}</small></button>
+    </div>`;
+  const ts = document.getElementById('todaySheet');
+  if (ts) ts.querySelector('.in').innerHTML = todayCard(h, res) + TAIL;
   if (PENDING) { const p = PENDING; PENDING = null; openFrom(p); }
 }
 // 위젯 버튼(🏠 👛 ⛪)으로 열렸을 때: 불러온 뒤 그 창을 연다
