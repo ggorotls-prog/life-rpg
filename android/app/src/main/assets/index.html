@@ -272,7 +272,7 @@ function render(res, data){
       <div class="small">고른 주(모든 칸 한 번 이상): <b>${res.balWeeks}주</b>${res.balNow ? ' · 이번 주 ✓' : ''} <span class="mute">· 배지 1·4·8·12주</span></div></div>
     <div class="card"><h2>누적 배지 (기록한 날)</h2>${badges}</div>
     <div class="foot">마을에서 적은 것도 각 기록 앱에 똑같이 쌓여요<br>
-      <span onclick="logout()" style="text-decoration:underline">로그아웃</span>${window.Native ? ' · 버전 '+Native.version() : ''}</div>`;
+      <span onclick="askGender()" style="text-decoration:underline">캐릭터 바꾸기</span> · <span onclick="logout()" style="text-decoration:underline">로그아웃</span>${window.Native ? ' · 버전 '+Native.version() : ''}</div>`;
   levelUps(res, cl);
   ls.set('rpg_last', {date: res.today, xp: res.totalXp});
   if (window.Native && Native.setSummary) Native.setSummary(JSON.stringify({
@@ -297,10 +297,11 @@ function levelUps(res, cl){
 async function load(){
   if (!token()) return loginView();
   try {
-    const [data, home] = await Promise.all([rpc('rpg_days', {p_token: token()}), rpc('rpg_home', {p_token: token()})]);
+    const [data, home, gd] = await Promise.all([rpc('rpg_days', {p_token: token()}), rpc('rpg_home', {p_token: token()}),
+      rpc('rpg_gender', {p_token: token()}).catch(() => ({failed: true}))]);
     const before = RES ? RES.totalXp : null;
     const res = compute(data), peaks = applyPeaks(res, data.peaks);
-    HOME = home;
+    HOME = home; if (gd && !gd.failed) GENDER = gd.gender || null;
     render(res, data);
     town(res, home);
     document.getElementById('nav').style.display = 'flex';
@@ -308,6 +309,8 @@ async function load(){
     tab(CUR);
     if (before !== null && res.totalXp > before) reward('✓ 기록됨'); // 2026-11-16 룡: 경험치 숫자는 화면에 띄우지 않는다
     rpc('rpg_save_peaks', {p_token: token(), p_peaks: peaks}).catch(() => {});
+    // 성별이 비었으면 앱을 켠 뒤 한 번만, 열린 창이 없을 때 묻는다(쓰던 창을 덮지 않게)
+    if (gd && !gd.failed && !GENDER && !ASKED && !document.querySelector('.sheet')) { ASKED = true; askGender(); }
   } catch(e) {
     if (e && e.body && JSON.stringify(e.body).includes('auth')) { setToken(''); return loginView(); }
     if (!RES) document.getElementById('app').innerHTML = `<div class="card">인터넷이 안 되거나 서버가 대답하지 않아요.<br><br><button onclick="load()">다시</button></div>`;
@@ -346,6 +349,18 @@ window.appBack = () => {
 // ===== 마을: 아이콘으로 바로 기록 (2단계, 2026-11-12 룡) =====
 // 기록은 기존 앱과 같은 표에 쌓인다: 집 = 건강 기록, 지갑 = 재정 기록, 퀘스트 = 업무 기록, 아빠 집 = 영성 기록 앱을 연다.
 let HOME = null, CUR = ls.get('rpg_tab', 'town');
+// 캐릭터 성별(rpg_players.gender, 2026-11-16 룡): 처음 열 때 한 번 묻고 DB에 남긴다. 상태창 맨 아래 「캐릭터 바꾸기」로 다시 고른다
+let GENDER = null, ASKED = false;
+const meEmoji = () => GENDER === '여' ? '🧍‍♀️' : GENDER === '남' ? '🧍‍♂️' : '🧍';
+window.askGender = () => sheet(`<h3>내 캐릭터</h3><div class="mute small" style="margin-bottom:12px">마을에 서 있을 캐릭터를 골라 주세요</div>
+  <div class="row" style="gap:10px"><button style="flex:1;font-size:18px;padding:16px 0" onclick="setGender('남')">🧍‍♂️ 남자</button>
+  <button style="flex:1;font-size:18px;padding:16px 0" onclick="setGender('여')">🧍‍♀️ 여자</button></div>`);
+window.setGender = async g => {
+  try { const r = await rpc('rpg_gender', {p_token: token(), p_set: g}); if (r && r.error) return toast(r.error); GENDER = r.gender; }
+  catch(e) { return toast('인터넷을 확인해 주세요'); }
+  document.querySelectorAll('.sheet').forEach(s => s.remove());
+  const me = document.querySelector('#world .me'); if (me) me.textContent = meEmoji();
+};
 function tab(t){
   CUR = t; ls.set('rpg_tab', t);
   document.getElementById('town').style.display = t === 'town' ? '' : 'none';
@@ -406,7 +421,7 @@ function town(res, h){
       ${spot(78, 68, 96, 80, 'openWallet()', '재정', '시장', h.fin_today ? '오늘 '+h.fin_today+'건' : '돈 썼을 때')}
       ${spot(16.5, 76, 80, 60, "soon('퀘스트')", null, '게시판', '퀘스트')}
       ${spot(82, 44, 80, 70, 'openRel()', '관계', '이웃', '통화·메모')}
-      <div class="me">🧍</div></div>
+      <div class="me">${meEmoji()}</div></div>
     <div class="hud top">
       <div class="glass lvb"><b>Lv ${cl}</b><div class="bar"><i style="width:${Math.round(cp*100)}%"></i></div></div>
       <div class="glass evs">${evHtml}</div>
@@ -598,20 +613,20 @@ window.openFather = async () => {
   const s = sheet(`<h3>⛪ 아빠 집</h3><div class="mute small">불러오는 중…</div>`);
   try { await spiritDay(); } catch(e) { s.querySelector('.in').innerHTML = '<h3>⛪ 아빠 집</h3><div>인터넷을 확인해 주세요</div>'; return; }
   const n = k => spOf(k).length;
-  const btn = (k, ic, sub) => `<div class="tile sm" data-k="${k}">${n(k) ? `<span class="got">${k==='묵상'||k==='일기' ? '✓' : n(k)}</span>` : ''}<div class="ic">${ic}</div><div class="nm">${k}</div><div class="st">${sub}</div></div>`;
-  s.querySelector('.in').innerHTML = `<h3>⛪ 아빠 집</h3><div class="town3">
-    ${btn('묵상','📖', n('묵상') ? '오늘 했어요' : '아직')}${btn('감사','🙏', n('감사') ? n('감사')+'개' : '적기')}${btn('칭찬','👏', n('칭찬') ? n('칭찬')+'개' : '적기')}
-    ${btn('순종','🙌', n('순종') ? n('순종')+'개' : '한 것 적기')}${btn('깨달음','💡', n('깨달음') ? n('깨달음')+'개' : '적기')}
-    ${btn('SOC','🏫', n('SOC') ? n('SOC')+'개' : '적기')}${btn('일기','📝', n('일기') ? '이어 쓰기' : '쓰기')}
-    ${btn('통독','📚', n('통독') ? '오늘 '+n('통독')+'장' : '체크표')}${btn('기도','🕊', prayStart() ? '기도 중' : n('기도') ? '오늘 '+prayMin()+'분' : '시작')}</div>
+  // 2026-11-16 룡 「버튼이 너무 많아」: 📖 묵상 · ✍️ 오늘 기록(안에서 감사·칭찬·순종·깨달음·SOC 고름) · 📝 일기 · 📚 통독 넷만. 🕊 기도 버튼은 뺌(「기도라는 것에 맞지 않아」)
+  const btn = (k, ic, nm, sub) => `<div class="tile sm" data-k="${k}"><div class="ic">${ic}</div><div class="nm">${nm}</div><div class="st">${sub}</div></div>`;
+  const rec = FW_KINDS.reduce((t, k) => t + n(k), 0);
+  s.querySelector('.in').innerHTML = `<h3>⛪ 아빠 집</h3><div class="town3" style="grid-template-columns:repeat(2,1fr)">
+    ${btn('묵상','📖','묵상', n('묵상') ? '오늘 했어요' : '아직')}${btn('기록','✍️','오늘 기록', rec ? rec+'개' : '감사·순종·깨달음…')}
+    ${btn('일기','📝','일기', n('일기') ? '이어 쓰기' : '쓰기')}${btn('통독','📚','통독', n('통독') ? '오늘 '+n('통독')+'장' : '체크표')}</div>
     <div class="small mute">기록은 영성 기록과 같은 곳에 쌓여요</div>`;
   s.querySelectorAll('[data-k]').forEach(t => t.onclick = () => {
     const k = t.dataset.k;
     if (k === '묵상') return openMeditation();
     if (k === '일기') return openDiary();
     if (k === '통독') return openBible();
-    if (k === '기도') return openPrayer();
-    openFw(k);
+    let last = '감사'; try { last = localStorage.getItem('rpg_fw_kind') || '감사'; } catch(e) {}
+    openFw(FW_KINDS.includes(last) ? last : '감사');
   });
 };
 
@@ -734,11 +749,15 @@ async function drawMeditation(d){
 
 // 🙏 감사 · 👏 칭찬 · 🏫 SOC · 🙌 순종 · 💡 깨달음: 적는 칸 + 오늘 적은 것
 // 순종·깨달음(2026-11-16 룡 「묵상은 아침에 앉아서 시작하지만 순종한 것은 하루 중에 수집되는 거야. 깨달음도」): 하루 중 생길 때마다 한 줄. 순종은 오늘 묵상 「순종할 것」을 위에 보여 준다
-function openFw(k){
-  const ic = {감사:'🙏', 칭찬:'👏', SOC:'🏫', 순종:'🙌', 깨달음:'💡'}[k];
+const FW_KINDS = ['감사','칭찬','순종','깨달음','SOC'];
+const FW_IC = {감사:'🙏', 칭찬:'👏', SOC:'🏫', 순종:'🙌', 깨달음:'💡'};
+function openFw(k, keep){
+  try { localStorage.setItem('rpg_fw_kind', k); } catch(e) {}
+  const ic = FW_IC[k];
   const ph = {감사:'감사한 것', 칭찬:'무엇을 칭찬할까요', SOC:'있었던 일과 내 반응', 순종:'무엇을 했나요 (예: 점심 먹고 말씀 두 장 읽음)', 깨달음:'오늘 주신 깨달음'}[k];
   const obey = k === '순종' ? spOf('묵상').map(m => m.obey).filter(Boolean) : [];
-  const s = sheet(`<h3>${ic} ${k}</h3>
+  const s = sheet(`<h3>✍️ 오늘 기록</h3>
+    <div class="chips">${FW_KINDS.map(x => `<span class="chip${x === k ? ' on' : ''}" data-kind="${x}">${FW_IC[x]} ${x}</span>`).join('')}</div>
     ${k === '순종' ? (obey.length ? `<div class="small" style="margin-bottom:8px">📖 오늘 묵상 순종할 것<div style="margin-top:4px">${obey.map(esc).join('<br>')}</div></div>` : `<div class="small mute" style="margin-bottom:8px">오늘 묵상이 아직 없어요. 한 것만 적어도 돼요</div>`) : ''}
     ${k === '칭찬' ? `<input id="tg" placeholder="누구를"><div class="chips">${(SP.targets||[]).map(t => `<span class="chip" data-t="${esc(t)}">${esc(t)}</span>`).join('')}</div>` : ''}
     <textarea id="tx" rows="3" placeholder="${ph}" style="width:100%;font:inherit;padding:12px;border:1px solid var(--line);border-radius:10px"></textarea>
@@ -746,6 +765,9 @@ function openFw(k){
     <div class="err" id="err"></div><button id="go">적기</button>
     <h2 style="margin-top:16px">오늘 적은 것</h2><div id="ls" class="small"></div>`);
   s.querySelectorAll('[data-t]').forEach(c => c.onclick = () => { s.querySelector('#tg').value = c.dataset.t; });
+  // 종류 고르기: 쓰던 글은 그대로 들고 간다
+  s.querySelectorAll('[data-kind]').forEach(c => c.onclick = () => { if (c.dataset.kind !== k) openFw(c.dataset.kind, s.querySelector('#tx').value); });
+  if (keep) s.querySelector('#tx').value = keep;
   const list = () => { const a = spOf(k);
     s.querySelector('#ls').innerHTML = a.length ? a.map(e => k === 'SOC'
       ? `<div class="task" style="display:block"><div>${esc(e.situation||'')}</div>${e.learned ? `<div class="mute" style="margin-top:4px">→ ${esc(e.learned)}</div>` : `<div class="mute" style="margin-top:4px"><span class="chip" data-l="${e.id}">배운 것 적기</span></div>`}</div>`
