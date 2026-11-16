@@ -639,12 +639,13 @@ const BIBLE = [['구약',[['창세기',50],['출애굽기',40],['레위기',27],
   ['베드로전서',5],['베드로후서',3],['요한일서',5],['요한이서',1],['요한삼서',1],['유다서',1],['요한계시록',22]]]];
 const BIBLE_ALL = BIBLE.reduce((s, [, bs]) => s + bs.reduce((t, b) => t + b[1], 0), 0);
 let BREAD = null, BOPEN = ls.get('rpg_bopen', null);
+let BROUNDS = 0; // 끝낸 통독 번 수(2026-11-16 룡 「대략 18독」)
 async function openBible(){
   const s = sheet(`<h3>📚 통독</h3><div class="mute small">불러오는 중…</div>`);
-  try { const r = await rpc('rpg_bible', {p_token: token()}); BREAD = new Set(r.read); } catch(e) { s.querySelector('.in').innerHTML = '<h3>📚 통독</h3><div>인터넷을 확인해 주세요</div>'; return; }
+  try { const r = await rpc('rpg_bible', {p_token: token()}); BREAD = new Set(r.read); BROUNDS = +r.rounds || 0; } catch(e) { s.querySelector('.in').innerHTML = '<h3>📚 통독</h3><div>인터넷을 확인해 주세요</div>'; return; }
   const draw = () => {
     const pct = Math.round(BREAD.size / BIBLE_ALL * 1000) / 10;
-    let h = `<h3>📚 통독 <span class="small mute" style="float:right">${BREAD.size} / ${BIBLE_ALL}장 · ${pct}%</span></h3>
+    let h = `<h3>📚 통독${BROUNDS ? ` <span class="small">${BROUNDS}독</span>` : ''} <span class="small mute" style="float:right">${BROUNDS ? (BROUNDS+1)+'독째 · ' : ''}${BREAD.size} / ${BIBLE_ALL}장 · ${pct}%</span></h3>
       <div class="bar" style="margin-bottom:10px"><i style="width:${pct}%"></i></div><div class="small mute" style="margin-bottom:6px">시편·잠언은 빼고 · 장을 누르면 체크</div>`;
     for (const [part, books] of BIBLE) {
       h += `<h2 style="margin:12px 0 4px">${part}</h2>`;
