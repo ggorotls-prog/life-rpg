@@ -96,7 +96,8 @@ select{width:100%;font:inherit;padding:11px;border:1px solid var(--line);border-
 .spot .hit{margin:0 auto}
 .spot .lb{display:inline-block;margin-top:2px;background:rgba(255,255,255,.93);border-radius:10px;padding:3px 9px;font-size:13px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.15);white-space:nowrap}
 .spot .lb small{display:block;font-weight:500;color:var(--mute);font-size:11px}
-.spot .gx{position:absolute;right:-8px;background:var(--ok);color:#fff;font-size:11px;font-weight:800;border-radius:9px;padding:2px 7px}
+/* 오늘 기록한 건물: 이름표 안 이름 옆에 작은 ✓(2026-11-16 룡 「체크가 뜬금없이 떠 있어」 → 건물 위에 따로 띄우지 않음) */
+.spot .lb .lbck{display:inline-block;margin-left:4px;background:var(--ok);color:#fff;font-size:10px;font-weight:800;border-radius:8px;padding:0 5px;line-height:15px;vertical-align:1px}
 .me{position:absolute;left:50%;top:66%;transform:translate(-50%,-50%);font-size:44px;animation:bob 2.4s ease-in-out infinite;pointer-events:none}
 @keyframes bob{50%{transform:translate(-50%,-56%)}}
 .hud{position:fixed;left:12px;right:12px;z-index:2;max-width:496px;margin:0 auto}
@@ -397,7 +398,7 @@ function town(res, h){
   const evHtml = ev === null
     ? (N.askCalendar ? `<div class="evl" onclick="Native.askCalendar()"><span class="nm">📅 눌러서 캘린더 보기를 허용해 주세요</span></div>` : `<div class="evl"><span class="nm mute">📅 일정은 앱에서 보여요</span></div>`)
     : ev.length ? ev.map(evLine).join('') : `<div class="evl"><span class="nm mute">📅 남은 일정 없음</span></div>`;
-  const spot = (x, y, w, hgt, onc, area, name, st) => `<div class="spot" style="left:${x}%;top:${y}%" onclick="${onc}"><div class="hit" style="width:${w}px;height:${hgt}px;margin-top:-${hgt-30}px"></div>${area && res.areas[area].todayItems ? `<span class="gx" style="top:-${hgt-30}px">✓</span>` : ''}<div class="lb">${name}<small>${st}</small></div></div>`;
+  const spot = (x, y, w, hgt, onc, area, name, st) => `<div class="spot" style="left:${x}%;top:${y}%" onclick="${onc}"><div class="hit" style="width:${w}px;height:${hgt}px;margin-top:-${hgt-30}px"></div><div class="lb">${name}${area && res.areas[area].todayItems ? '<i class="lbck">✓</i>' : ''}<small>${st}</small></div></div>`;
   const todayN = (h.tasks || []).filter(t => t.requester !== h.name || (t.due && t.due <= h.today) || ((t.remind||'').slice(0,10) && (t.remind||'').slice(0,10) <= h.today)).length;
   document.getElementById('town').innerHTML = `
     <div id="world">${SCENE}
