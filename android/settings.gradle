@@ -18,3 +18,6 @@ project(':workkit').projectDir = file('ext/greenjui-calls/android/workkit')
 // ⛪ 영성 기록(personal-record, 비공개라 읽기 전용 열쇠로 받음) spiritkit
 include ':spiritkit'
 project(':spiritkit').projectDir = file('ext/personal-record/android/spiritkit')
+// 👥 관계 기록(relation-record, 공개) relkit
+include ':relkit'
+project(':relkit').projectDir = file('ext/relation-record/android/relkit')

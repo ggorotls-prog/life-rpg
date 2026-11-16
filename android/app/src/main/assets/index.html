@@ -382,6 +382,8 @@ function evLine(e){
 }
 window.openToday = () => { const s = sheet(todayCard(HOME, RES) + TAIL); s.id = 'todaySheet'; };
 window.soon = w => toast(w + '는 다음 단계에 붙여요');
+// 👥 이웃 = 관계 기록 그 자체(2026-11-16, 원본 한 벌 relkit): 통화 기록·사람·메모. 앱이 아니면(브라우저) 안내만
+window.openRel = () => { const N = window.Native || {}; if (N.openRel) N.openRel(); else toast('관계 기록은 앱에서 열려요'); };
 function town(res, h){
   const cl = Math.floor(res.charShown), cp = res.charShown - cl;
   const got = a => res.areas[a].todayItems ? `<span class="got">${res.areas[a].todayXp ? '+'+res.areas[a].todayXp : '✓'}</span>` : '';
@@ -403,6 +405,7 @@ function town(res, h){
       ${spot(24, 57, 96, 96, 'openHome()', '건강', '집', homeSt)}
       ${spot(78, 68, 96, 80, 'openWallet()', '재정', '시장', h.fin_today ? '오늘 '+h.fin_today+'건' : '돈 썼을 때')}
       ${spot(16.5, 76, 80, 60, "soon('퀘스트')", null, '게시판', '퀘스트')}
+      ${spot(82, 44, 80, 70, 'openRel()', '관계', '이웃', '통화·메모')}
       <div class="me">🧍</div></div>
     <div class="hud top">
       <div class="glass lvb"><b>Lv ${cl}</b><div class="bar"><i style="width:${Math.round(cp*100)}%"></i></div></div>
@@ -422,7 +425,7 @@ let PENDING = null;
 window.openFrom = k => {
   if (!HOME) { PENDING = k; return; }
   tab('town');
-  ({home: openHome, wallet: openWallet, father: openFather})[k]?.();
+  ({home: openHome, wallet: openWallet, father: openFather, rel: openRel})[k]?.();
 };
 
 // ===== 오늘: 일정 + 할 일 (업무 기록 캘린더 위젯과 같은 나누기, 2026-11-12 룡 「기본 화면은 내 일정과 할 일」) =====

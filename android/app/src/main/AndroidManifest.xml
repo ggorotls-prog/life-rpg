@@ -24,6 +24,12 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- 👥 관계 기록(2026-11-16, 관계 기록 앱과 같은 권한): 통화가 끝났는지(번호는 안 읽음) · 통화 기록(번호·방향·시각·길이만, 녹음·내용 안 읽음) ·
+         연락처(제외 목록·알림 이름) · 통화가 끝나면 화면 아래 작은 창으로 묻기 -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <!-- 아빠 집: 영성 기록 앱을 열려면 그 앱이 보여야 한다(안드로이드 11+) -->
     <queries>
@@ -32,6 +38,13 @@
         <package android:name="app.faithbudget" />
         <!-- 건강 기록 단독 앱이 깔려 있으면 아침·밤 알림을 그 앱에 맡긴다 -->
         <package android:name="app.liferoom" />
+        <!-- 기록 앱 단독판이 깔려 있으면 알림·통화 모으기를 그 앱에 맡긴다 -->
+        <package android:name="app.relrecord" />
+        <!-- 관계 기록: 익시오를 찾아 열려고(녹음 글 복사) -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
     </queries>
 
     <application
@@ -240,6 +253,39 @@
             </intent-filter>
         </receiver>
         <service android:name=".SpiritApp$TimerRing" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+
+        <!-- 👥 이웃 = 관계 기록 앱 그 자체(2026-11-16). 원본 한 벌 relkit, 설정은 관계 기록 앱 manifest와 같게 -->
+        <activity
+            android:name=".RelApp$Screen"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity="app.liferpg.rel"
+            android:windowSoftInputMode="adjustResize" />
+        <!-- 통화 끝나면 뜨는 작은 창: 이름·영역 고르고 바로 저장 -->
+        <activity
+            android:name=".RelApp$Ask"
+            android:exported="false"
+            android:theme="@android:style/Theme.DeviceDefault.Light.Dialog.NoActionBar"
+            android:taskAffinity="app.liferpg.ask"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="adjustResize" />
+        <!-- 통화가 끝나면 통화 기록 읽기 예약(관계 기록 앱이 같이 깔려 있으면 그 앱만) -->
+        <receiver android:name=".RelApp$Call" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+        <receiver android:name=".RelApp$AskAlert" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+        <service
+            android:name=".RelApp$CallWork"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <!-- 파일 넘기기: 건강 기록 사진 찍기(카메라가 찍은 파일 넘겨받기) · 영성 기록 묵상 이미지 공유. 길은 rpg_files에 둘 다 -->
         <provider

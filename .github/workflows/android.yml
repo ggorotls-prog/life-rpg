@@ -24,6 +24,10 @@ on:
         description: '영성 기록 원본(personal-record)의 가지(시험용, 보통 main)'
         type: string
         default: 'main'
+      rel_ref:
+        description: '관계 기록 원본(relation-record)의 가지(시험용, 보통 main)'
+        type: string
+        default: 'main'
 
 jobs:
   # 원본(healthkit·finkit)이 지난번 RPG 판과 달라졌나. push·그냥 Run workflow는 늘 만든다
@@ -40,6 +44,7 @@ jobs:
         run: |
           H=$(gh api "repos/ggorotls-prog/life-room/commits?path=android/healthkit&per_page=1" -q '.[0].sha')
           F=$(gh api "repos/ggorotls-prog/faith-budget/commits?path=android/finkit&per_page=1" -q '.[0].sha')
+          L=$(gh api "repos/ggorotls-prog/relation-record/commits?path=android/relkit&per_page=1" -q '.[0].sha')
           # 업무 기록 저장소(greenjui-calls)는 비공개라 읽기 전용 열쇠(배포 키)로 본다
           W=""
           if [ -n "$KIT_WORK_KEY" ]; then
@@ -54,11 +59,11 @@ jobs:
             GIT_SSH_COMMAND="ssh -i $RUNNER_TEMP/spirit.key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" git clone -q --filter=blob:none --no-checkout git@github.com:ggorotls-prog/personal-record.git "$RUNNER_TEMP/p" && P=$(git -C "$RUNNER_TEMP/p" log -1 --format=%H origin/main -- android/spiritkit)
             rm -f "$RUNNER_TEMP/spirit.key"
           fi
-          echo "원본 지금: healthkit $H · finkit $F · workkit $W · spiritkit $P"
+          echo "원본 지금: healthkit $H · finkit $F · workkit $W · spiritkit $P · relkit $L"
           if [ "${{ github.event_name }}" = "push" ] || { [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.check_only }}" != "true" ]; }; then echo "go=true" >> "$GITHUB_OUTPUT"; exit 0; fi
           OLD=$(gh api "repos/${{ github.repository }}/contents/app/kits.json" -q .content 2>/dev/null | base64 -d 2>/dev/null || echo '{}')
           echo "지난번 RPG 판: $OLD"
-          if [ -n "$H" ] && [ -n "$F" ] && [ -n "$W" ] && [ -n "$P" ] && echo "$OLD" | grep -q "$H" && echo "$OLD" | grep -q "$F" && echo "$OLD" | grep -q "$W" && echo "$OLD" | grep -q "$P"; then echo "그대로라 안 만들어요"; echo "go=false" >> "$GITHUB_OUTPUT"; else echo "원본이 바뀌어 새로 만들어요"; echo "go=true" >> "$GITHUB_OUTPUT"; fi
+          if [ -n "$H" ] && [ -n "$F" ] && [ -n "$W" ] && [ -n "$P" ] && [ -n "$L" ] && echo "$OLD" | grep -q "$H" && echo "$OLD" | grep -q "$F" && echo "$OLD" | grep -q "$W" && echo "$OLD" | grep -q "$P" && echo "$OLD" | grep -q "$L"; then echo "그대로라 안 만들어요"; echo "go=false" >> "$GITHUB_OUTPUT"; else echo "원본이 바뀌어 새로 만들어요"; echo "go=true" >> "$GITHUB_OUTPUT"; fi
 
   build:
     needs: check
@@ -69,6 +74,7 @@ jobs:
       finkit: ${{ steps.kits.outputs.finkit }}
       workkit: ${{ steps.kits.outputs.workkit }}
       spiritkit: ${{ steps.kits.outputs.spiritkit }}
+      relkit: ${{ steps.kits.outputs.relkit }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -96,6 +102,7 @@ jobs:
           WORK_REF: ${{ inputs.work_ref || 'main' }}
           KIT_SPIRIT_KEY: ${{ secrets.KIT_SPIRIT_KEY }}
           SPIRIT_REF: ${{ inputs.spirit_ref || 'main' }}
+          REL_REF: ${{ inputs.rel_ref || 'main' }}
         run: |
           echo "healthkit=$(gh api "repos/ggorotls-prog/life-room/commits?path=android/healthkit&per_page=1" -q '.[0].sha')" >> "$GITHUB_OUTPUT"
           echo "finkit=$(gh api "repos/ggorotls-prog/faith-budget/commits?path=android/finkit&per_page=1" -q '.[0].sha')" >> "$GITHUB_OUTPUT"
@@ -117,6 +124,10 @@ jobs:
           rm -f "$RUNNER_TEMP/spirit.key"
           echo "spiritkit=$(git -C android/ext/personal-record log -1 --format=%H -- android/spiritkit)" >> "$GITHUB_OUTPUT"
           echo "영성 기록 원본: $SPIRIT_REF $(git -C android/ext/personal-record rev-parse --short HEAD)"
+          # 👥 관계 기록(relation-record, 공개) relkit
+          git clone -q --filter=blob:none -b "$REL_REF" https://github.com/ggorotls-prog/relation-record.git android/ext/relation-record
+          echo "relkit=$(git -C android/ext/relation-record log -1 --format=%H -- android/relkit)" >> "$GITHUB_OUTPUT"
+          echo "관계 기록 원본: $REL_REF $(git -C android/ext/relation-record rev-parse --short HEAD)"
       - name: APK 만들기
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -335,6 +346,24 @@ jobs:
             # ⑭ 영성 기록 위젯
             grep -q 'SpiritApp\$Widget' rcv.txt || { echo "영성 기록 위젯이 없어요"; exit 1; }
             echo "영성 기록 위젯 들어 있음"
+            # ---- 👥 관계 기록(2026-11-16): 관계 기록 앱 시험과 같은 것 ----
+            # ⑮ 마을 「이웃」과 같은 길(open=rel): 관계 기록 화면 그 자체(화면 글은 relkit 안 assets/rel/index.html)
+            adb shell am force-stop app.liferpg
+            adb logcat -c
+            adb shell am start -W -n app.liferpg/.MainActivity --es open rel
+            sleep 15
+            adb logcat -d -b crash > crash12.txt || true
+            if grep -q "FATAL EXCEPTION" crash12.txt; then cat crash12.txt; exit 1; fi
+            adb shell dumpsys activity activities | grep -E "topResumedActivity" | tee top10.txt
+            grep -q 'RelApp\$Screen' top10.txt || { echo "관계 기록 화면이 안 떴어요"; exit 1; }
+            adb logcat -d | grep -E "ERR_FILE_NOT_FOUND" | head -3 | tee asset.txt || true
+            if grep -q "ERR_FILE_NOT_FOUND" asset.txt; then echo "관계 기록 화면 글을 못 찾았어요"; exit 1; fi
+            echo "👥 관계 기록 화면 뜸"
+            adb exec-out screencap -p > shot-rel.png || true
+            # ⑯ 통화가 끝났을 때 받는 곳(PHONE_STATE)이 이 앱에 들어 있는지
+            adb shell cmd package query-receivers --components -a android.intent.action.PHONE_STATE | grep liferpg | tee phone.txt || true
+            grep -q 'RelApp\$Call' phone.txt || { echo "통화 받기가 안 들어 있어요"; exit 1; }
+            echo "통화 받기 들어 있음"
       # 화면 사진(밝은·어두운): 모양 확인용
       - uses: actions/upload-artifact@v4
         if: always()
@@ -363,7 +392,7 @@ jobs:
           SHA=$(sha256sum app/life-rpg.apk | cut -d' ' -f1)
           printf '{"versionCode":%s,"apk":"/app/life-rpg.apk","sha256":"%s"}\n' "$GITHUB_RUN_NUMBER" "$SHA" > app/version.json
           # 이 판이 쓴 기록 앱 원본(15분 점검이 이것과 비교한다)
-          printf '{"healthkit":"%s","finkit":"%s","workkit":"%s","spiritkit":"%s"}\n' "${{ needs.build.outputs.healthkit }}" "${{ needs.build.outputs.finkit }}" "${{ needs.build.outputs.workkit }}" "${{ needs.build.outputs.spiritkit }}" > app/kits.json
+          printf '{"healthkit":"%s","finkit":"%s","workkit":"%s","spiritkit":"%s","relkit":"%s"}\n' "${{ needs.build.outputs.healthkit }}" "${{ needs.build.outputs.finkit }}" "${{ needs.build.outputs.workkit }}" "${{ needs.build.outputs.spiritkit }}" "${{ needs.build.outputs.relkit }}" > app/kits.json
           git config user.name "life-rpg-bot"
           git config user.email "life-rpg-bot@users.noreply.github.com"
           git add -f app

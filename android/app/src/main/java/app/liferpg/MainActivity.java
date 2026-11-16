@@ -80,6 +80,8 @@ public class MainActivity extends Activity {
         // 영성 기록: 묵상 알림 다시 맞추기, RPG 로그인으로 영성 기록 로그인 받아 두기(작은 적기 창·위젯용)
         app.recordkit.spirit.Spirit.start(this);
         SpiritApp.SignIn.ensure(this);
+        // 관계 기록: 15분 통화 확인, RPG 로그인으로 관계 기록 열쇠 받기
+        RelApp.start(this);
         take(getIntent());
         if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
@@ -97,6 +99,8 @@ public class MainActivity extends Activity {
         if ("ledger".equals(i.getStringExtra(EXTRA_OPEN))) { openLedger(); return; }
         // 📋 업무 기록 화면(요청·확인 = 업무 기록 앱 그 자체, 2026-11-16). 가상 폰 시험도 이 길로 연다
         if ("work".equals(i.getStringExtra(EXTRA_OPEN))) { startActivity(WorkApp.screen(this, false)); return; }
+        // 👥 관계 기록 화면
+        if ("rel".equals(i.getStringExtra(EXTRA_OPEN))) { startActivity(RelApp.screen(this)); return; }
         // ⛪ 영성 기록 화면(묵상 탭)
         if ("spirit".equals(i.getStringExtra(EXTRA_OPEN))) { startActivity(SpiritApp.screen(this, "묵상")); return; }
         openWhat = i.getStringExtra(EXTRA_OPEN);
@@ -293,6 +297,9 @@ public class MainActivity extends Activity {
         // 업무 기록의 ＋ 할 일 적기 창 / 맡기기 창 = 업무 기록 위젯과 같은 창. 2026-11-16부터 이 앱 안의 같은 창(원본 한 벌 workkit)
         @JavascriptInterface public void todoAdd() { open(WorkApp.quick(MainActivity.this)); }
         @JavascriptInterface public void todoAssign() { open(WorkApp.screen(MainActivity.this, true)); }
+
+        // 👥 이웃 = 관계 기록 앱 그 자체(RelApp.Screen, 2026-11-16)
+        @JavascriptInterface public void openRel() { open(RelApp.screen(MainActivity.this)); }
 
         // 업무 기록 화면(요청받은 일·확인·새 할 일) = 업무 기록 앱 그 자체(WorkApp.Screen)
         @JavascriptInterface public void openTodo() { open(WorkApp.screen(MainActivity.this, false)); }
