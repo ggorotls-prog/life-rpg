@@ -306,7 +306,7 @@ async function load(){
     document.getElementById('nav').style.display = 'flex';
     document.body.classList.add('tabs');
     tab(CUR);
-    if (before !== null && res.totalXp > before) reward('+' + (res.totalXp - before) + ' EXP');
+    if (before !== null && res.totalXp > before) reward('✓ 기록됨'); // 2026-11-16 룡: 경험치 숫자는 화면에 띄우지 않는다
     rpc('rpg_save_peaks', {p_token: token(), p_peaks: peaks}).catch(() => {});
   } catch(e) {
     if (e && e.body && JSON.stringify(e.body).includes('auth')) { setToken(''); return loginView(); }
@@ -395,7 +395,7 @@ function town(res, h){
   const evHtml = ev === null
     ? (N.askCalendar ? `<div class="evl" onclick="Native.askCalendar()"><span class="nm">📅 눌러서 캘린더 보기를 허용해 주세요</span></div>` : `<div class="evl"><span class="nm mute">📅 일정은 앱에서 보여요</span></div>`)
     : ev.length ? ev.map(evLine).join('') : `<div class="evl"><span class="nm mute">📅 남은 일정 없음</span></div>`;
-  const spot = (x, y, w, hgt, onc, area, name, st) => `<div class="spot" style="left:${x}%;top:${y}%" onclick="${onc}"><div class="hit" style="width:${w}px;height:${hgt}px;margin-top:-${hgt-30}px"></div>${area && res.areas[area].todayItems ? `<span class="gx" style="top:-${hgt-30}px">${res.areas[area].todayXp ? '+'+res.areas[area].todayXp : '✓'}</span>` : ''}<div class="lb">${name}<small>${st}</small></div></div>`;
+  const spot = (x, y, w, hgt, onc, area, name, st) => `<div class="spot" style="left:${x}%;top:${y}%" onclick="${onc}"><div class="hit" style="width:${w}px;height:${hgt}px;margin-top:-${hgt-30}px"></div>${area && res.areas[area].todayItems ? `<span class="gx" style="top:-${hgt-30}px">✓</span>` : ''}<div class="lb">${name}<small>${st}</small></div></div>`;
   const todayN = (h.tasks || []).filter(t => t.requester !== h.name || (t.due && t.due <= h.today) || ((t.remind||'').slice(0,10) && (t.remind||'').slice(0,10) <= h.today)).length;
   document.getElementById('town').innerHTML = `
     <div id="world">${SCENE}
@@ -405,7 +405,7 @@ function town(res, h){
       ${spot(16.5, 76, 80, 60, "soon('퀘스트')", null, '게시판', '퀘스트')}
       <div class="me">🧍</div></div>
     <div class="hud top">
-      <div class="glass lvb"><b>Lv ${cl}</b><div class="bar"><i style="width:${Math.round(cp*100)}%"></i></div><span style="color:var(--ok)">오늘 +${res.todayXp}</span></div>
+      <div class="glass lvb"><b>Lv ${cl}</b><div class="bar"><i style="width:${Math.round(cp*100)}%"></i></div></div>
       <div class="glass evs">${evHtml}</div>
     </div>
     <div class="hud bot">
@@ -482,7 +482,7 @@ function todayCard(h, res){
 window.doneTask = (id, mine) => {
   if (!mine) { window.Native && Native.openTodo && Native.openTodo(); return; }
   const t = HOME.tasks.find(x => x.id === id);
-  const s = sheet(`<h3>완료할까요?</h3><div>${esc(t ? t.title : '')}</div><div style="display:flex;gap:8px;margin-top:14px"><button class="ghost" id="no">아니요</button><button id="yes">완료 +EXP</button></div>`);
+  const s = sheet(`<h3>완료할까요?</h3><div>${esc(t ? t.title : '')}</div><div style="display:flex;gap:8px;margin-top:14px"><button class="ghost" id="no">아니요</button><button id="yes">완료</button></div>`);
   s.querySelector('#no').onclick = closeSheet;
   s.querySelector('#yes').onclick = () => save('rpg_task_done', {p_id: id}, '퀘스트 완료');
 };
