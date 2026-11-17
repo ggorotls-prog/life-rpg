@@ -102,13 +102,15 @@ public class Daily extends BroadcastReceiver {
         }
     }
 
-    // ---- 1시간마다: 위젯 새로 그리기 + 새 버전 알림 ----
+    // ---- 15분마다: 위젯 새로 그리기 + 새 버전 알림 (2026-11-17 룡: 다른 기록 앱과 같게 1시간 → 15분) ----
     public static class Job extends android.app.job.JobService {
+        static final long EVERY = 15 * 60_000L;
         static void schedule(Context ctx) {
             JobScheduler js = ctx.getSystemService(JobScheduler.class);
-            if (js.getPendingJob(31) != null) return;
+            JobInfo old = js.getPendingJob(31);
+            if (old != null && old.getIntervalMillis() == EVERY) return; // 옛 1시간 예약이면 같은 번호로 다시 건다(덮어씀)
             js.schedule(new JobInfo.Builder(31, new ComponentName(ctx, Job.class))
-                    .setPeriodic(60 * 60_000L)
+                    .setPeriodic(EVERY)
                     .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
                     .setPersisted(true)
                     .build());
