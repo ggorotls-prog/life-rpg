@@ -385,6 +385,18 @@ jobs:
             if grep -q "FATAL EXCEPTION" crash-lock.txt; then cat crash-lock.txt; exit 1; fi
             grep -q "app.liferpg/.MainActivity" locktop.txt || { echo "잠금화면 위에 마을이 안 떴어요"; exit 1; }
             echo "잠금화면 앞에 마을 뜸"
+            # 화면을 눕혀도(화면이 다시 그려져도) 잠금 위 판이 남아 있는지: 「누르면 잠금 풀기」 글자가 화면에 있어야 한다
+            adb shell settings put system accelerometer_rotation 0
+            adb shell settings put system user_rotation 1
+            sleep 4
+            adb shell uiautomator dump /sdcard/lock.xml >/dev/null 2>&1 || true
+            adb shell cat /sdcard/lock.xml > lockui.txt || true
+            adb exec-out screencap -p > shot-lock-rot.png || true
+            adb shell settings put system user_rotation 0
+            adb logcat -d -b crash > crash-lock2.txt || true
+            if grep -q "FATAL EXCEPTION" crash-lock2.txt; then cat crash-lock2.txt; exit 1; fi
+            grep -q "잠금 풀기" lockui.txt || { echo "화면을 돌리니 잠금 위 판이 사라졌어요"; exit 1; }
+            echo "돌려도 판이 남아 있음"
             adb shell locksettings clear --old 1234 || true
       # 화면 사진(밝은·어두운): 모양 확인용
       - uses: actions/upload-artifact@v4

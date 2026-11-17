@@ -574,7 +574,7 @@ window.setupView = () => {
   // 🏘 잠금화면 앞에 마을(2026-11-18 룡): 화면을 켜면 잠금 풀기 전에 마을이 먼저. 켜면 「다른 앱 위에 표시」 허용이 필요하다
   if (N.lockFront) { const lf = N.lockFront(), ov = N.overlayOn();
     lock = row('🏘 잠금화면 앞에 마을', lf && !ov ? '「다른 앱 위에 표시」를 허용해야 떠요' : '화면을 켜면 잠금 풀기 전에 마을이 먼저 보여요. 누르면 잠금을 풀어요. 늘 떠 있는 작은 알림이 하나 생겨요',
-      lf && !ov ? btn('Native.openOverlay()', '허용') : btn(`Native.setLockFront(${!lf});closeSheet();setupView()`, lf ? '끄기' : '켜기')); }
+      (lf && !ov ? btn('Native.openOverlay()', '허용') + ' ' : '') + btn(`Native.setLockFront(${!lf});closeSheet();setupView()`, lf ? '끄기' : '켜기')); }
   if (N.notifyOn) notif = row('🔔 알림', '가입·기록 승인, 새 버전, 밤 9시 30분 「오늘 나아간 것」을 알려 줘요', N.notifyOn() ? on : btn('Native.openNotify()', '켜기'));
   if (N.calendar) cal = row('📅 캘린더 보기', '마을과 「오늘」에 오늘 일정을 같이 보여 줘요', N.calendar(S(Date.now())) !== null ? on : btn('Native.askCalendar()', '허용'));
   if (N.battery) bat = row('🔋 배터리 아끼기에서 빼기', '15분마다 새 소식을 확인하려면 필요해요', N.battery() ? on : btn('Native.openBattery()', '빼기'));
@@ -1175,7 +1175,10 @@ function openDiary(){
     } catch(e) { err.textContent = errMsg(e); }
   };
 }
-window.onNative = ev => { if (ev === 'resume') { load(); if (document.getElementById('setupSheet')) setupView(); } };
+window.onNative = ev => {
+  // 잠금화면 위에 뜰 때: 열려 있던 창을 다 닫고 마을로(잠금을 안 푼 사람에게 적던 글·보고서가 보이지 않게)
+  if (ev === 'lock') { document.querySelectorAll('.sheet,.ov').forEach(x => x.remove()); try { if (CUR !== 'town' && document.getElementById('nav').style.display !== 'none') tab('town'); } catch (e) {} return; }
+  if (ev === 'resume') { load(); if (document.getElementById('setupSheet')) setupView(); } };
 let y0 = null; // 아래로 당기면 새로고침
 addEventListener('touchstart', e => { y0 = scrollY === 0 ? e.touches[0].clientY : null; }, {passive:true});
 addEventListener('touchend', e => { if (y0 !== null && e.changedTouches[0].clientY - y0 > 90) { toast('새로 불러와요'); load(); } y0 = null; });

@@ -31,6 +31,25 @@ public class LockFront extends Service {
     /** 「다른 앱 위에 표시」가 허용돼 있어야 화면이 꺼질 때 마을을 올릴 수 있다 */
     static boolean allowed(Context c) { return Settings.canDrawOverlays(c); }
 
+    /** 가상 폰인가(시험용 표시는 가상 폰에서만 받는다) */
+    static boolean emulator() {
+        String f = String.valueOf(Build.FINGERPRINT), h = String.valueOf(Build.HARDWARE), mo = String.valueOf(Build.MODEL);
+        return f.contains("generic") || f.contains("emulator") || h.contains("ranchu") || h.contains("goldfish") || mo.contains("sdk_gphone") || mo.contains("Emulator");
+    }
+
+    // 마을 화면(MainActivity) 위에 건강 기록·장부 같은 다른 화면이 떠 있나. 그럴 때 마을을 다시 띄우면 그 화면이 닫혀 적던 글이 사라진다
+    private static boolean otherScreenOnTop(Context c) {
+        try {
+            android.app.ActivityManager am = c.getSystemService(android.app.ActivityManager.class);
+            for (android.app.ActivityManager.AppTask t : am.getAppTasks()) {
+                android.app.ActivityManager.RecentTaskInfo info = t.getTaskInfo();
+                if (info.baseActivity == null || !MainActivity.class.getName().equals(info.baseActivity.getClassName())) continue;
+                return info.topActivity != null && !MainActivity.class.getName().equals(info.topActivity.getClassName());
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
     static void set(Context c, boolean v) {
         sp(c).edit().putBoolean("lockFront", v).apply();
         if (v) start(c);
@@ -53,6 +72,7 @@ public class LockFront extends Service {
         try {
             if (!on(c) || !allowed(c)) return;
             if (LockService.isLocked(c)) return;   // 자는 중에는 건강 기록 취침 잠금이 화면을 맡는다
+            if (otherScreenOnTop(c)) return;       // 적던 화면이 닫히지 않게 이번에는 안 띄운다
             AudioManager am = c.getSystemService(AudioManager.class);
             int mode = am == null ? AudioManager.MODE_NORMAL : am.getMode();
             if (mode == AudioManager.MODE_RINGTONE || mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_IN_COMMUNICATION) return;
