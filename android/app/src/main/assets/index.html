@@ -164,11 +164,24 @@ const ls = { get(k,d){ try { const v = localStorage.getItem(k); return v ? JSON.
 
 function toast(m){ const t = document.getElementById('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 2400); }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// 오류 글(2026-11-17): 무엇을 하면 되는지까지 말한다. 서버 영어 오류는 그대로 보여 주지 않는다
+const AGAIN = ' 다시 눌러 주세요. 계속 안 되면 관리자에게 말해 주세요.';
+function errMsg(e){
+  if (!e || !e.status) return '인터넷이 안 돼요. 연결을 확인하고' + AGAIN;
+  const b = e.body || {}, m = String(b.message || '');
+  if (b.code === 'PGRST202' || e.status === 404) return '아직 준비 중인 기능이에요. 관리자에게 말해 주세요.';
+  if (m === 'auth') return '로그인이 풀렸어요. 다시 들어가 주세요.';
+  if (m.startsWith('pack: ')) return m.slice(6) + '. ⚙ 설정에서 확인해 주세요.';
+  return '잘 안 됐어요.' + AGAIN;
+}
 
 // ===== 계산 =====
 const cum = L => 5*L*L + 5*L - 10;
 function levelOf(xp){ let L = 1; while (cum(L+1) <= xp) L++; const need = 10*(L+1), into = xp - cum(L); return {L, into, need, f: L + into/need}; }
 
+// 연 기록만 계산·화면에 넣는다(2026-11-17): 영역 → 확장팩. 지성은 확장팩이 없어 기록이 있을 때만
+const PACK_OF = {'일':'업무','관계':'관계','재정':'재정','건강':'건강','영성':'영성'};
+const opened = a => !PACK_OF[a] || has(PACK_OF[a]);
 function compute(data){
   const today = data.today, byArea = {};
   AREAS.forEach(a => byArea[a] = {}); // 날짜 → {항목: 개수}
@@ -177,7 +190,7 @@ function compute(data){
   const res = {today, areas:{}};
   for (const a of AREAS) {
     const days = Object.keys(byArea[a]).sort();
-    const r = {a, days, ready: !READY[a] || days.length > 0};
+    const r = {a, days, open: opened(a), ready: opened(a) && (!READY[a] || days.length > 0)};
     let xp = 0, todayXp = 0;
     if (WEEKLY[a]) {
       const wk = {}; days.forEach(d => { const k = monday(d); wk[k] = (wk[k]||0) + 1; });
@@ -196,9 +209,9 @@ function compute(data){
     res.areas[a] = r;
   }
   const act = AREAS.filter(a => res.areas[a].ready);
-  const fs = act.map(a => res.areas[a].lv.f), mn = Math.min(...fs);
-  res.char = (fs.reduce((x,y) => x+y, 0) + 2*mn) / (act.length + 2);
-  res.minArea = act.reduce((m,a) => res.areas[a].lv.f < res.areas[m].lv.f ? a : m, act[0]);
+  const fs = act.map(a => res.areas[a].lv.f), mn = fs.length ? Math.min(...fs) : 0;   // 연 기록이 아직 없으면 0
+  res.char = fs.length ? (fs.reduce((x,y) => x+y, 0) + 2*mn) / (act.length + 2) : 1;
+  res.minArea = act.length > 1 ? act.reduce((m,a) => res.areas[a].lv.f < res.areas[m].lv.f ? a : m, act[0]) : null;
   res.todayXp = act.reduce((s,a) => s + res.areas[a].todayXp, 0);
   res.totalXp = act.reduce((s,a) => s + res.areas[a].xp, 0);
   // 고른 주: 그 주(월~일)에 시작된 영역이 모두 한 번 이상
@@ -207,7 +220,7 @@ function compute(data){
   res.season = season + 1; res.seasonStart = sStart; res.seasonEnd = add(sStart, 90);
   let bal = 0, balNow = false;
   for (let w = sStart; w <= today; w = add(w,7)) {
-    const ok = act.every(a => res.areas[a].days.some(d => d >= w && d < add(w,7)));
+    const ok = act.length && act.every(a => res.areas[a].days.some(d => d >= w && d < add(w,7)));
     if (ok) { bal++; if (w === wk0) balNow = true; }
   }
   res.balWeeks = bal; res.balNow = balNow;
@@ -230,7 +243,7 @@ const ITEM = {'할 일 끝냄':'할 일 끝냄','기상':'기상','취침':'취�
 function itemsText(it){ return Object.entries(it).map(([k,n]) => (ITEM[k]||k) + (n > 1 ? ' '+n : '')).join(' · '); }
 
 function radar(res){
-  const act = AREAS, cx = 110, cy = 105, R = 78;
+  const act = AREAS.filter(a => res.areas[a].open), cx = 110, cy = 105, R = 78;
   const pt = (i, r) => { const t = -Math.PI/2 + i*2*Math.PI/act.length; return [cx + r*Math.cos(t), cy + r*Math.sin(t)]; };
   const ring = k => act.map((_,i) => pt(i, R*k).join(',')).join(' ');
   const shape = act.map((a,i) => pt(i, R*Math.max(.04, res.areas[a].ready ? res.areas[a].shape : 0)).join(',')).join(' ');
@@ -249,9 +262,11 @@ function render(res, data){
   if (last && last.date < add(res.today,-1) && res.totalXp > last.xp)
     banner = `<div class="banner">${md(last.date)} 뒤로 쌓인 것: +${res.totalXp - last.xp} EXP</div>`;
   const stats = AREAS.map(a => { const r = res.areas[a];
+    if (!r.open) return '';   // 안 연 기록은 안 보임(2026-11-17)
     if (!r.ready) return `<div class="stat off"><span>${a}</span><div class="bar"><i style="width:0"></i></div><span class="n">준비 중</span></div>`;
     return `<div class="stat"><span>${a}</span><div class="bar"><i style="width:${Math.round(r.lv.into/r.lv.need*100)}%"></i></div><span class="n">Lv ${r.lvShown}</span></div>`; }).join('');
   const todayList = AREAS.map(a => { const r = res.areas[a];
+    if (!r.open) return '';
     if (!r.ready) return `<li class="not">· ${a} — ${READY[a]}</li>`;
     if (!r.todayItems) return `<li class="not">· ${a} <span style="margin-left:auto" class="small">이번 주 ${r.week}일</span></li>`;
     return `<li><span>✓ ${a} · ${esc(itemsText(r.todayItems))}</span><span class="xp">${r.todayXp ? '+'+r.todayXp : '가득'}</span></li>`; }).join('');
@@ -266,11 +281,11 @@ function render(res, data){
       <div class="row"><div class="avatar">${esc((data.name||'나').slice(0,1))}</div>
         <div style="flex:1"><div class="row"><span class="lv">Lv ${cl}</span><span class="mute small">${esc(data.name||'')}</span></div>
         <div class="row" style="margin-top:6px"><div class="bar"><i style="width:${Math.round(cp*100)}%"></i></div><span class="small mute">${Math.round(cp*100)}%</span></div></div></div>
-      <div class="small mute" style="margin-top:10px">고르게 기를수록 빨리 올라요 · 지금 가장 작은 칸: <b>${res.minArea}</b></div>
+      <div class="small mute" style="margin-top:10px">고르게 기를수록 빨리 올라요${res.minArea ? ` · 지금 가장 작은 칸: <b>${res.minArea}</b>` : ''}</div>
     </div>
     <div class="card today"><h2>오늘 나아간 것 <span class="small" style="float:right">+${res.todayXp} EXP</span></h2><ul>${todayList}</ul></div>
     <div class="card"><h2>능력치</h2>${stats}</div>
-    <div class="card"><h2>최근 4주 모양</h2>${radar(res)}<div style="margin-top:8px">${cmp}</div>
+    <div class="card"><h2>최근 4주 모양</h2>${AREAS.filter(a => res.areas[a].open).length >= 3 ? radar(res) : ''}<div style="margin-top:8px">${cmp}</div>
       <div class="small mute" style="margin-top:6px">▲▽ = 그 전 4주와 비교한 기록한 날</div></div>
     <div class="card"><h2>시즌 ${res.season} · ${res.weekIdx}/13주 <span class="small" style="float:right">${md(res.seasonStart)}~${md(res.seasonEnd)}</span></h2>
       <div class="small">고른 주(모든 칸 한 번 이상): <b>${res.balWeeks}주</b>${res.balNow ? ' · 이번 주 ✓' : ''} <span class="mute">· 배지 1·4·8·12주</span></div></div>
@@ -281,7 +296,8 @@ function render(res, data){
   ls.set('rpg_last', {date: res.today, xp: res.totalXp});
   if (window.Native && Native.setSummary) Native.setSummary(JSON.stringify({
     lv: cl, pct: Math.round(cp*100), today: res.today,
-    on: AREAS.map(a => res.areas[a].ready ? (res.areas[a].todayItems ? 1 : 0) : -1), names: AREAS, xp: res.todayXp }));
+    on: AREAS.map(a => res.areas[a].ready ? (res.areas[a].todayItems ? 1 : 0) : -1), names: AREAS, xp: res.todayXp,
+    packs: {home: has('건강'), wallet: has('재정'), father: has('영성'), work: has('업무')} }));   // 위젯: 안 연 기록 버튼은 숨김
 }
 
 function levelUps(res, cl){
@@ -291,7 +307,7 @@ function levelUps(res, cl){
   if (!seen) return;
   if (cl > (seen.char||0)) {
     const o = document.createElement('div'); o.className = 'ov';
-    o.innerHTML = `<div class="card"><div class="mute">레벨 업</div><div class="big">Lv ${cl}</div><div class="small mute">여섯 칸을 고르게 기른 만큼 올랐어요</div><button style="margin-top:14px">좋아요</button></div>`;
+    o.innerHTML = `<div class="card"><div class="mute">레벨 업</div><div class="big">Lv ${cl}</div><div class="small mute">여러 칸을 고르게 기른 만큼 올랐어요</div><button style="margin-top:14px">좋아요</button></div>`;
     o.onclick = () => o.remove(); document.body.appendChild(o); return;
   }
   const up = AREAS.filter(a => res.areas[a].lvShown > (seen[a]||0));
@@ -305,9 +321,9 @@ async function load(){
       rpc('rpg_gender', {p_token: token()}).catch(() => ({failed: true})),
       rpc('rpg_me', {p_token: token()}).catch(() => null)]);
     const before = RES ? RES.totalXp : null;
+    if (me && !me.error) ME = me;   // 계산 전에: 연 기록만 계산에 넣는다
     const res = compute(data), peaks = applyPeaks(res, data.peaks);
     HOME = home; if (gd && !gd.failed) GENDER = gd.gender || null;
-    if (me && !me.error) ME = me;
     render(res, data);
     town(res, home);
     document.getElementById('nav').style.display = 'flex';
@@ -318,11 +334,13 @@ async function load(){
     // 성별이 비었으면 앱을 켠 뒤 한 번만, 열린 창이 없을 때 묻는다(쓰던 창을 덮지 않게)
     // 기존 사용자: 동의 창을 먼저(쓸 기록 고르기 + 동의, 2026-11-16 법무사 「이미 쓰는 사람도 같은 동의」)
     if (ME && ME.need_consent && !ME.owner && !document.querySelector('.sheet')) { consentView(); return; }
-    if (gd && !gd.failed && !GENDER && !ASKED && !document.querySelector('.sheet')) { ASKED = true; askGender(); }
+    if (gd && !gd.failed && !GENDER && !ASKED && !document.querySelector('.sheet')) { ASKED = true; askGender(); return; }
+    // 첫 로그인 뒤 한 번: 켜야 할 것(알림·캘린더·배터리·위젯)
+    if (!ls.get('rpg_setup_seen', false) && !document.querySelector('.sheet')) setupView();
   } catch(e) {
     if (e && e.body && JSON.stringify(e.body).includes('auth')) { setToken(''); return loginView(); }
-    if (!RES) document.getElementById('app').innerHTML = `<div class="card">인터넷이 안 되거나 서버가 대답하지 않아요.<br><br><button onclick="load()">다시</button></div>`;
-    else toast('새로 못 불러왔어요');
+    if (!RES) document.getElementById('app').innerHTML = `<div class="card">불러오지 못했어요.<br>${esc(errMsg(e))}<br><br><button onclick="load()">다시</button></div>`;
+    else toast('새로 못 불러왔어요. 아래로 당겨 다시 해 주세요');
   }
 }
 
@@ -331,20 +349,34 @@ function loginView(){
   document.getElementById('town').innerHTML = '';
   document.getElementById('app').style.display = '';
   document.body.classList.remove('tabs');
+  const wait = waitNick();
   document.getElementById('app').innerHTML = `<div class="card"><h2 style="color:var(--ink);font-size:18px">라이프 RPG</h2>
+    ${wait ? `<div class="banner" id="waitb">⏳ <b>${esc(wait)}</b> 가입 승인 기다리는 중이에요. 승인되면 알려 드릴게요.</div>` : ''}
     <div class="small mute">닉네임(아이디)과 비밀번호</div>
-    <input id="id" autocomplete="username" placeholder="닉네임"><input id="pw" type="password" autocomplete="current-password" placeholder="비밀번호">
+    <input id="id" autocomplete="username" placeholder="닉네임" value="${esc(wait)}"><input id="pw" type="password" autocomplete="current-password" placeholder="비밀번호">
     <div class="err" id="err"></div><button id="go">들어가기</button>
+    <div class="small mute" style="margin-top:8px">비밀번호를 잊었으면 초대한 사람(관리자)에게 말해 주세요. 새 비밀번호를 정해 줍니다.</div>
     <button class="ghost" style="margin-top:10px" onclick="signupView()">처음이에요 · 가입 신청</button></div>`;
+  if (wait) checkWait();
   document.getElementById('go').onclick = async () => {
     const id = document.getElementById('id').value, pw = document.getElementById('pw').value, err = document.getElementById('err');
     err.textContent = '';
     if (!id || !pw) { err.textContent = '아이디와 비밀번호를 넣어 주세요'; return; }
     try { const r = await rpc('rpg_login', {p_id: id, p_pw: pw});
       if (r.error) { err.textContent = r.error; return; }
+      if (waitNick() && waitNick().toLowerCase() === id.trim().toLowerCase()) setWait('');   // 승인돼서 들어옴
       setToken(r.token); load();
-    } catch(e) { err.textContent = '인터넷을 확인해 주세요'; }
+    } catch(e) { err.textContent = errMsg(e); }
   };
+}
+// 가입 신청한 닉네임(승인 기다림). 이 폰에만 둔다. 앱은 15분마다 확인해 승인·거절되면 알림을 띄운다(Native.setWait)
+const waitNick = () => ls.get('rpg_wait', '') || '';
+function setWait(n){ ls.set('rpg_wait', n || ''); try { window.Native && Native.setWait && Native.setWait(n || ''); } catch(e) {} }
+async function checkWait(){
+  let r; try { r = await rpc('rpg_join_status', {p_nick: waitNick()}); } catch(e) { return; }   // 함수가 아직 없으면 그대로 기다림 표시
+  const b = document.getElementById('waitb'); if (!b || !r) return;
+  if (r.status === 'approved') b.innerHTML = '✅ 가입이 승인됐어요. 비밀번호를 넣고 들어가 주세요.';
+  else if (r.status === 'rejected') { b.innerHTML = '가입이 승인되지 않았어요. 궁금하면 초대한 사람(관리자)에게 물어봐 주세요.'; setWait(''); }
 }
 
 window.logout = () => { const t = token(); rpc('rpg_logout', {p_token: t}).catch(() => {}); setToken(''); ls.set('rpg_seen', null); loginView(); };
@@ -366,7 +398,7 @@ window.askGender = () => sheet(`<h3>내 캐릭터</h3><div class="mute small" st
   <button style="flex:1;font-size:18px;padding:16px 0" onclick="setGender('여')">🧍‍♀️ 여자</button></div>`);
 window.setGender = async g => {
   try { const r = await rpc('rpg_gender', {p_token: token(), p_set: g}); if (r && r.error) return toast(r.error); GENDER = r.gender; }
-  catch(e) { return toast('인터넷을 확인해 주세요'); }
+  catch(e) { return toast(errMsg(e)); }
   document.querySelectorAll('.sheet').forEach(s => s.remove());
   const me = document.querySelector('#world .me'); if (me) me.textContent = meEmoji();
 };
@@ -448,9 +480,11 @@ window.signupView = () => {
     if (!SG) { err.textContent = '캐릭터(남자·여자)를 골라 주세요'; return; }
     try { const r = await rpc('rpg_join_request', {p_nick: v('sg_nick'), p_pw: v('sg_pw'), p_gender: SG, p_packs: packs, p_consents: readConsents('sg_', packs)});
       if (r.error) { err.textContent = r.error; return; }
+      setWait(v('sg_nick').trim());
       document.getElementById('app').innerHTML = `<div class="card"><h2 style="color:var(--ink);font-size:18px">신청했어요 🙌</h2>
-        <div>만든 사람이 승인하면 <b>${esc(v('sg_nick'))}</b>(으)로 로그인할 수 있어요.</div><button style="margin-top:14px" onclick="loginView()">로그인 화면으로</button></div>`;
-    } catch(e) { err.textContent = '인터넷을 확인해 주세요'; }
+        <div>만든 사람이 승인하면 <b>${esc(v('sg_nick'))}</b>(으)로 로그인할 수 있어요.</div>
+        <div class="banner" style="margin-top:10px">⏳ 승인 기다리는 중이에요. 승인되면 알려 드릴게요.</div><button style="margin-top:14px" onclick="loginView()">로그인 화면으로</button></div>`;
+    } catch(e) { err.textContent = errMsg(e); }
   };
 };
 window.sgGender = g => { SG = g; document.getElementById('sg_m').className = g === '남' ? '' : 'ghost'; document.getElementById('sg_f').className = g === '여' ? '' : 'ghost'; };
@@ -481,7 +515,7 @@ window.consentView = () => {
       document.querySelectorAll('.sheet').forEach(x => x.remove());
       toast(packs.length ? '신청했어요. 만든 사람이 열어 주면 마을에 건물이 생겨요' : '고마워요');
       load();
-    } catch(e) { err.textContent = '인터넷을 확인해 주세요'; }
+    } catch(e) { err.textContent = errMsg(e); }
   };
 };
 
@@ -497,6 +531,9 @@ window.openSettings = () => {
   const rc = (k, label) => `<label class="cons"><input type="checkbox" ${m.consents[k] ? 'checked' : ''} onchange="setReport('${k}', this.checked)"><span>${label}</span></label>`;
   sheet(`<h3>⚙ 설정</h3>
     <div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span>캐릭터 ${meEmoji()}</span><button class="ghost" style="width:auto;padding:4px 10px" onclick="askGender()">바꾸기</button></div>
+    <div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span>🔑 비밀번호</span><button class="ghost" style="width:auto;padding:4px 10px" onclick="pwView()">바꾸기</button></div>
+    <div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span>📱 켜야 할 것</span><button class="ghost" style="width:auto;padding:4px 10px" onclick="setupView()">보기</button></div>
+    ${m.owner ? `<div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span>📮 신청 · 구성원</span><button class="ghost" style="width:auto;padding:4px 10px" onclick="openJoins()">열기</button></div>` : ''}
     <div style="margin-top:12px;font-weight:700">확장팩</div>${rows}
     ${m.owner ? '' : `<div style="margin-top:12px;font-weight:700">성장 보고서 <span class="small mute">선택</span></div>
       ${rc('보고서_읽기', '만든 사람이 읽고 성장 보고서를 만들어 드려요')}
@@ -506,9 +543,47 @@ window.openSettings = () => {
     ${m.owner ? '' : `<button class="ghost" style="margin-top:16px;color:#b33" onclick="leaveAsk()">탈퇴하기</button>`}
     <button class="ghost" style="margin-top:8px" onclick="closeSheet()">닫기</button>`);
 };
+// 🔑 비밀번호 바꾸기(2026-11-17): 바꾸면 모든 기기에서 나가지고, 새 비밀번호로 다시 들어온다
+window.pwView = () => {
+  const s = sheet(`<h3>🔑 비밀번호 바꾸기</h3>
+    <input id="pw0" type="password" autocomplete="current-password" placeholder="지금 비밀번호">
+    <input id="pw1" type="password" autocomplete="new-password" placeholder="새 비밀번호 (6자 이상, 영어+숫자)">
+    <input id="pw2" type="password" autocomplete="new-password" placeholder="새 비밀번호 한 번 더">
+    <div class="err" id="pw_err"></div><button id="pw_go">바꾸기</button>
+    <div class="small mute" style="margin-top:8px">바꾸면 이 폰과 다른 기기에서 모두 나가져요. 새 비밀번호로 다시 들어오면 돼요.</div>
+    <button class="ghost" style="margin-top:8px" onclick="openSettings()">← 설정</button>`);
+  s.querySelector('#pw_go').onclick = async () => {
+    const v = id => s.querySelector('#'+id).value, err = s.querySelector('#pw_err');
+    err.textContent = '';
+    if (!v('pw0') || !v('pw1')) { err.textContent = '세 칸을 모두 넣어 주세요'; return; }
+    if (v('pw1') !== v('pw2')) { err.textContent = '새 비밀번호 두 칸이 달라요'; return; }
+    try { const r = await rpc('rpg_change_password', {p_token: token(), p_current: v('pw0'), p_next: v('pw1')});
+      if (r.error) { err.textContent = r.error; return; }
+      document.querySelectorAll('.sheet').forEach(x => x.remove()); setToken(''); loginView(); toast('바꿨어요. 새 비밀번호로 들어가 주세요');
+    } catch(e) { err.textContent = errMsg(e); }
+  };
+};
+// 📱 켜야 할 것(2026-11-17): 첫 로그인 뒤 한 번 뜨고, ⚙ 설정에서 다시 연다. 이 앱이 실제로 쓰는 것만
+window.setupView = () => {
+  ls.set('rpg_setup_seen', true);
+  const N = window.Native || {};
+  const on = '<span class="small" style="color:var(--ok)">켜짐</span>';
+  const btn = (f, t) => `<button style="width:auto;padding:4px 10px" onclick="${f}">${t}</button>`;
+  const row = (title, sub, right) => `<div class="row" style="justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)"><div style="flex:1"><div>${title}</div><div class="small mute">${sub}</div></div>${right}</div>`;
+  let notif = '', cal = '', bat = '';
+  if (N.notifyOn) notif = row('🔔 알림', '가입·기록 승인, 새 버전, 밤 9시 30분 「오늘 나아간 것」을 알려 줘요', N.notifyOn() ? on : btn('Native.openNotify()', '켜기'));
+  if (N.calendar) cal = row('📅 캘린더 보기', '마을과 「오늘」에 오늘 일정을 같이 보여 줘요', N.calendar(S(Date.now())) !== null ? on : btn('Native.askCalendar()', '허용'));
+  if (N.battery) bat = row('🔋 배터리 아끼기에서 빼기', '15분마다 새 소식을 확인하려면 필요해요', N.battery() ? on : btn('Native.openBattery()', '빼기'));
+  const s = sheet(`<h3>📱 켜야 할 것</h3><div class="small mute" style="margin-bottom:6px">처음 한 번만 하면 돼요. 나중에 ⚙ 설정 → 「켜야 할 것」에서 다시 볼 수 있어요.</div>
+    ${notif}${cal}${bat}
+    ${row('🧩 위젯 놓기', '홈 화면 빈 곳을 길게 누름 → 「위젯」 → 「라이프 RPG」 → 끌어다 놓기', '')}
+    ${N.notifyOn ? '' : '<div class="small mute" style="margin-top:8px">알림·캘린더·배터리는 앱에서만 켤 수 있어요</div>'}
+    <button style="margin-top:14px" onclick="closeSheet();load()">다 했어요</button>`);
+  s.id = 'setupSheet';   // 설정 화면에서 돌아오면 다시 그린다(onNative)
+};
 window.setReport = async (k, on) => {
   try { const r = await rpc('rpg_consent_set', {p_token: token(), p_items: [k], p_agreed: on}); if (r.error) return toast(r.error);
-    ME.consents[k] = on; toast(on ? '켰어요' : '껐어요. 보고서에 쓰지 않아요'); } catch(e) { toast('인터넷을 확인해 주세요'); }
+    ME.consents[k] = on; toast(on ? '켰어요' : '껐어요. 보고서에 쓰지 않아요'); } catch(e) { toast(errMsg(e)); }
 };
 window.packAdd = k => {
   const p = PACKS.find(x => x.k === k) || {k, icon:'👥', b:'이웃', main:'통화·메모를 저장해요.', what:'통화 기록·사람 메모'};
@@ -520,7 +595,7 @@ window.packAdd = k => {
     if (!(ME && ME.owner) && !need.every(n => c.includes(n))) { document.getElementById('pa_err').textContent = '동의에 체크해 주세요'; return; }
     try { const r = await rpc('rpg_pack_request', {p_token: token(), p_pack: k}); if (r.error) return toast(r.error);
       document.querySelectorAll('.sheet').forEach(x => x.remove()); toast(ME && ME.owner ? '열었어요' : '신청했어요. 승인되면 건물이 생겨요'); load(); }
-    catch(e) { toast('인터넷을 확인해 주세요'); }
+    catch(e) { toast(errMsg(e)); }
   };
 };
 window.packClose = k => {
@@ -529,7 +604,7 @@ window.packClose = k => {
     <button style="margin-top:14px;background:#b33" id="pc_go">닫기</button><button class="ghost" style="margin-top:8px" onclick="openSettings()">← 설정</button>`);
   document.getElementById('pc_go').onclick = async () => {
     try { const r = await rpc('rpg_pack_close', {p_token: token(), p_pack: k}); if (r.error) return toast(r.error);
-      document.querySelectorAll('.sheet').forEach(x => x.remove()); toast('닫았어요'); load(); } catch(e) { toast('인터넷을 확인해 주세요'); }
+      document.querySelectorAll('.sheet').forEach(x => x.remove()); toast('닫았어요'); load(); } catch(e) { toast(errMsg(e)); }
   };
 };
 window.leaveAsk = () => {
@@ -538,13 +613,19 @@ window.leaveAsk = () => {
 };
 window.leaveGo = async () => {
   try { const r = await rpc('rpg_leave', {p_token: token()}); if (r.error) return toast(r.error);
-    document.querySelectorAll('.sheet').forEach(x => x.remove()); setToken(''); ME = null; loginView(); toast('탈퇴했어요'); } catch(e) { toast('인터넷을 확인해 주세요'); }
+    document.querySelectorAll('.sheet').forEach(x => x.remove()); setToken(''); ME = null; loginView(); toast('탈퇴했어요'); } catch(e) { toast(errMsg(e)); }
 };
 
 // 4) 주인(룡): 📮 신청 — 가입·확장팩 승인
 window.openJoins = async () => {
   const s = sheet('<h3>📮 신청</h3><div class="mute small">불러오는 중…</div>');
-  let r; try { r = await rpc('rpg_join_list', {p_token: token()}); } catch(e) { s.querySelector('.in').innerHTML = '<h3>📮 신청</h3>인터넷을 확인해 주세요'; return; }
+  let r; try { r = await rpc('rpg_join_list', {p_token: token()}); } catch(e) { s.querySelector('.in').innerHTML = '<h3>📮 신청</h3>'+esc(errMsg(e)); return; }
+  // 구성원 · 비밀번호 다시 정하기(2026-11-17). 함수가 아직 없으면 안내 글만
+  let mem = ''; try { const ml = await rpc('rpg_member_list', {p_token: token()});
+    mem = ml.error ? `<div class="small mute">${esc(ml.error)}</div>` : (ml.members || []).map(m => `<div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)">
+      <span><b>${esc(m.nick)}</b>${m.locked ? ' <span class="small" style="color:#b33">잠김</span>' : ''}</span>
+      <button class="ghost" style="width:auto;padding:4px 10px" onclick="resetPwView('${m.id}', ${esc(JSON.stringify(m.nick))})">비밀번호 다시 정하기</button></div>`).join('') || '<div class="small mute">아직 구성원이 없어요</div>';
+  } catch(e) { mem = `<div class="small mute">${esc(errMsg(e))}</div>`; }
   if (r.error) { s.querySelector('.in').innerHTML = '<h3>📮 신청</h3>'+esc(r.error); return; }
   const rep = c => ['보고서_읽기','보고서_AI','보고서_민감'].filter(x => c.includes(x)).map(x => x.replace('보고서_','')).join('·') || '안 함';
   const joins = r.joins.map(j => `<div class="card" style="margin:8px 0;padding:12px">
@@ -557,17 +638,35 @@ window.openJoins = async () => {
       <span><b>${esc(p.nick)}</b> · ${esc(p.pack)}</span><span><button style="width:auto;padding:4px 10px" onclick="packDecide('${p.member}','${p.pack}',true)">열기</button>
       <button class="ghost" style="width:auto;padding:4px 10px" onclick="packDecide('${p.member}','${p.pack}',false)">거절</button></span></div>`).join('');
   s.querySelector('.in').innerHTML = `<h3>📮 신청</h3>${joins || ''}${packs ? '<div style="margin-top:10px;font-weight:700">확장팩</div>'+packs : ''}${!joins && !packs ? '<div class="mute">기다리는 신청이 없어요</div>' : ''}
+    <div style="margin-top:16px;font-weight:700">구성원</div>${mem}
     <button class="ghost" style="margin-top:12px" onclick="closeSheet()">닫기</button>`;
+};
+// 주인: 구성원 비밀번호 다시 정하기. 새 비밀번호를 그 사람에게 알려 주면, 그 사람은 ⚙ 설정에서 자기 것으로 바꾼다
+window.resetPwView = (id, nick) => {
+  const s = sheet(`<h3>${esc(nick)} · 비밀번호 다시 정하기</h3>
+    <div class="small mute">새 비밀번호를 정해 그 사람에게 알려 주세요. 그 사람은 모든 기기에서 나가지고, 새 비밀번호로 다시 들어와요. 잠김도 풀려요.</div>
+    <input id="rp1" type="text" autocomplete="off" placeholder="새 비밀번호 (6자 이상, 영어+숫자)">
+    <div class="err" id="rp_err"></div><button id="rp_go">정하기</button>
+    <button class="ghost" style="margin-top:8px" onclick="openJoins()">← 신청 · 구성원</button>`);
+  s.querySelector('#rp_go').onclick = async () => {
+    const pw = s.querySelector('#rp1').value, err = s.querySelector('#rp_err');
+    err.textContent = '';
+    if (!pw) { err.textContent = '새 비밀번호를 넣어 주세요'; return; }
+    try { const r = await rpc('rpg_member_reset_pw', {p_token: token(), p_member: id, p_pw: pw});
+      if (r.error) { err.textContent = r.error; return; }
+      toast('정했어요. ' + nick + '님에게 새 비밀번호를 알려 주세요'); openJoins();
+    } catch(e) { err.textContent = errMsg(e); }
+  };
 };
 window.joinDecide = async (id, ok) => {
   const packs = [...document.querySelectorAll('.jp_'+id)].filter(e => e.checked).map(e => e.value);
   if (ok && !packs.length) return toast('열어 줄 기록을 하나 이상 골라 주세요');
   try { const r = await rpc('rpg_join_decide', {p_token: token(), p_id: id, p_ok: ok, p_packs: packs}); if (r.error) return toast(r.error);
-    toast(ok ? '승인했어요' : '거절했어요'); CHANGED = true; openJoins(); } catch(e) { toast('인터넷을 확인해 주세요'); }
+    toast(ok ? '승인했어요' : '거절했어요'); CHANGED = true; openJoins(); } catch(e) { toast(errMsg(e)); }
 };
 window.packDecide = async (m, k, ok) => {
   try { const r = await rpc('rpg_pack_decide', {p_token: token(), p_member: m, p_pack: k, p_ok: ok}); if (r.error) return toast(r.error);
-    toast(ok ? '열었어요' : '거절했어요'); CHANGED = true; openJoins(); } catch(e) { toast('인터넷을 확인해 주세요'); }
+    toast(ok ? '열었어요' : '거절했어요'); CHANGED = true; openJoins(); } catch(e) { toast(errMsg(e)); }
 };
 
 function tab(t){
@@ -612,7 +711,7 @@ function town(res, h){
   const cl = Math.floor(res.charShown), cp = res.charShown - cl;
   const got = a => res.areas[a].todayItems ? `<span class="got">${res.areas[a].todayXp ? '+'+res.areas[a].todayXp : '✓'}</span>` : '';
   const hh = h.health;
-  const homeSt = !hh ? '건강 기록 계정 없음'
+  const homeSt = !hh ? '연결 안 됨 · 관리자에게 말해 주세요'
     : hh.need === 'bed_yesterday' ? '어젯밤 잔 시각부터'
     : hh.need === 'wake' ? '아직 안 일어남'
     : hh.bed ? `일어남 ${hh.wake} · 잠 ${hh.bed}` : `일어남 ${hh.wake} ${FACE[hh.condition]||''}`;
@@ -622,22 +721,29 @@ function town(res, h){
     ? (N.askCalendar ? `<div class="evl" onclick="Native.askCalendar()"><span class="nm">📅 눌러서 캘린더 보기를 허용해 주세요</span></div>` : `<div class="evl"><span class="nm mute">📅 일정은 앱에서 보여요</span></div>`)
     : ev.length ? ev.map(evLine).join('') : `<div class="evl"><span class="nm mute">📅 남은 일정 없음</span></div>`;
   const spot = (x, y, w, hgt, onc, area, name, st) => `<div class="spot" style="left:${x}%;top:${y}%" onclick="${onc}"><div class="hit" style="width:${w}px;height:${hgt}px;margin-top:-${hgt-30}px"></div><div class="lb">${name}<small>${st}</small></div></div>`;
+  // 신청한 기록이 승인을 기다리면 마을 위에 늘 보인다(2026-11-17). 연 기록이 하나도 없으면 더하는 길을 알려 준다
+  const waitPk = ME && !ME.owner ? PACKS.filter(p => ME.packs && ME.packs[p.k] === 'requested') : [];
+  const waitHtml = waitPk.length
+    ? `<div class="glass small">⏳ ${waitPk.map(p => p.icon+' '+p.b).join(' · ')} 기록 승인 기다리는 중이에요. 승인되면 알려 드릴게요.</div>`
+    : ME && !ME.owner && !PACKS.some(p => has(p.k)) ? `<div class="glass small" onclick="openSettings()">아직 연 기록이 없어요. 여기를 눌러 「확장팩」에서 「더하기」를 눌러 주세요.</div>` : '';
   const todayN = (h.tasks || []).filter(t => t.requester !== h.name || (t.due && t.due <= h.today) || ((t.remind||'').slice(0,10) && (t.remind||'').slice(0,10) <= h.today)).length;
   document.getElementById('town').innerHTML = `
     <div id="world">${SCENE}
       ${has('영성') ? spot(54, 38, 90, 110, 'openFather()', '영성', '아빠 집', sp.length ? sp.join('·') : '아직') : ''}
       ${has('건강') ? spot(24, 57, 96, 96, 'openHome()', '건강', '집', homeSt) : ''}
       ${has('재정') ? spot(78, 68, 96, 80, 'openWallet()', '재정', '시장', h.fin_today ? '오늘 '+h.fin_today+'건' : '돈 썼을 때') : ''}
-      ${has('업무') ? spot(16.5, 76, 80, 60, "soon('퀘스트')", null, '게시판', '퀘스트') : ''}
+      ${has('업무') && N.openTodo ? spot(16.5, 76, 80, 60, 'Native.openTodo()', null, '게시판', '할 일') : ''}
       ${has('관계') ? spot(82, 44, 80, 70, 'openRel()', '관계', '이웃', '통화·메모') : ''}
       <div class="me">${meEmoji()}</div></div>
     <div class="hud top">
       <div class="glass lvb"><b>Lv ${cl}</b><div class="bar"><i style="width:${Math.round(cp*100)}%"></i></div>${ME && ME.pending ? `<span onclick="openJoins()" style="margin-left:auto;background:#c8553d;color:#fff;border-radius:10px;padding:2px 8px;font-size:12px">📮 신청 ${ME.pending}</span>` : ''}</div>
       <div class="glass evs">${evHtml}</div>
+      ${waitHtml}
     </div>
     <div class="hud bot">
-      <button class="act q" onclick="soon('퀘스트')">📜 퀘스트<small>돌파할 것</small></button>
-      <button class="act s" onclick="soon('상점')">🏪 상점<small>위시리스트</small></button>
+      <!-- 퀘스트·상점은 아직 없는 기능이라 숨김(2026-11-17). 붙이면 style을 지운다 -->
+      <button class="act q" style="display:none" onclick="soon('퀘스트')">📜 퀘스트<small>돌파할 것</small></button>
+      <button class="act s" style="display:none" onclick="soon('상점')">🏪 상점<small>위시리스트</small></button>
       <button class="act c" onclick="openToday()">📋 오늘<small style="color:var(--mute)">${has('업무') ? '할 일 '+todayN : '일정'}</small></button>
     </div>`;
   const ts = document.getElementById('todaySheet');
@@ -727,7 +833,7 @@ async function save(fn, args, okMsg){
     if (r && r.error) { toast(r.error); return r; }
     if (r && r.need) return r;
     closeSheet(); if (okMsg) toast(okMsg); await load(); return r;
-  } catch(e) { toast('저장하지 못했어요. 인터넷을 확인해 주세요'); return null; }
+  } catch(e) { toast('저장하지 못했어요. ' + errMsg(e)); return null; }
 }
 
 // 🏠 집 = 건강 기록 화면 그 자체(2026-11-15 룡 「기록 앱은 동일, RPG는 비추는 창」): 앱 안 HealthActivity가 건강 기록 사이트를 띄운다.
@@ -735,7 +841,7 @@ async function save(fn, args, okMsg){
 window.openHome = () => {
   if (window.Native && Native.openHealth) { Native.openHealth(); return; }
   const h = HOME.health;
-  if (!h) return toast('건강 기록 계정이 이어져 있지 않아요');
+  if (!h) return toast('건강 기록 계정이 이어져 있지 않아요. 관리자에게 말해 주세요');
   if (h.need) {
     const yb = h.need === 'bed_yesterday';
     const s = sheet(`<h3>🏠 일어났어요</h3>
@@ -820,7 +926,7 @@ function openSpiritApp(tab){
 }
 window.openFather = async () => {
   const s = sheet(`<h3>⛪ 아빠 집</h3><div class="mute small">불러오는 중…</div>`);
-  try { await spiritDay(); } catch(e) { s.querySelector('.in').innerHTML = '<h3>⛪ 아빠 집</h3><div>인터넷을 확인해 주세요</div>'; return; }
+  try { await spiritDay(); } catch(e) { s.querySelector('.in').innerHTML = '<h3>⛪ 아빠 집</h3><div>'+esc(errMsg(e))+'</div>'; return; }
   const n = k => spOf(k).length;
   // 2026-11-16 룡 「버튼이 너무 많아」: 📖 묵상 · ✍️ 오늘 기록(안에서 감사·칭찬·순종·깨달음·SOC 고름) · 📝 일기 · 📚 통독 넷만. 🕊 기도 버튼은 뺌(「기도라는 것에 맞지 않아」)
   const btn = (k, ic, nm, sub) => `<div class="tile sm" data-k="${k}"><div class="ic">${ic}</div><div class="nm">${nm}</div><div class="st">${sub}</div></div>`;
@@ -851,7 +957,7 @@ let BREAD = null, BOPEN = ls.get('rpg_bopen', null);
 let BROUNDS = 0, BSTART = null, BDONE = []; // 끝낸 통독 번 수 · 이번 바퀴 시작일 · 끝낸 바퀴 기록(2026-11-16 룡)
 async function openBible(){
   const s = sheet(`<h3>📚 통독</h3><div class="mute small">불러오는 중…</div>`);
-  try { const r = await rpc('rpg_bible', {p_token: token()}); BREAD = new Set(r.read); BROUNDS = +r.rounds || 0; BSTART = r.started || null; BDONE = r.done || []; } catch(e) { s.querySelector('.in').innerHTML = '<h3>📚 통독</h3><div>인터넷을 확인해 주세요</div>'; return; }
+  try { const r = await rpc('rpg_bible', {p_token: token()}); BREAD = new Set(r.read); BROUNDS = +r.rounds || 0; BSTART = r.started || null; BDONE = r.done || []; } catch(e) { s.querySelector('.in').innerHTML = '<h3>📚 통독</h3><div>'+esc(errMsg(e))+'</div>'; return; }
   const draw = () => {
     const pct = Math.round(BREAD.size / BIBLE_ALL * 1000) / 10;
     let h = `<h3>📚 통독${BROUNDS ? ` <span class="small">${BROUNDS}독</span>` : ''} <span class="small mute" style="float:right">${BROUNDS ? (BROUNDS+1)+'독째 · ' : ''}${BSTART ? md(BSTART)+' 시작 · ' : ''}${BREAD.size} / ${BIBLE_ALL}장 · ${pct}%</span></h3>
@@ -876,7 +982,7 @@ async function openBible(){
       try { const r = await rpc('rpg_bible_toggle', {p_token: token(), p_ref: ref, p_on: on}); if (r.error) throw 0;
         // 한 바퀴를 다 채움: 기록이 남고 새 바퀴는 창세기 1장부터
         if (r.finished) { toast(r.finished + '독 끝! 다시 창세기부터'); BOPEN = null; ls.set('rpg_bopen', null); CHANGED = true; return openBible(); } }
-      catch(e) { on ? BREAD.delete(ref) : BREAD.add(ref); draw(); toast('저장하지 못했어요'); return; }
+      catch(e) { on ? BREAD.delete(ref) : BREAD.add(ref); draw(); toast(e === 0 ? '저장하지 못했어요.' + AGAIN : errMsg(e)); return; }
       CHANGED = true;
     });
   };
@@ -908,7 +1014,7 @@ async function openPrayer(){
       try { const r = await rpc('rpg_prayer_save', {p_token: token(), p_start: hhmm(st), p_end: hhmm(end), p_minutes: min});
         if (r.error) { toast(r.error); return; }
         ls.set('rpg_pray_start', 0); clearInterval(PTIMER); await spiritDay(); toast('기도 '+min+'분 적었어요'); closeSheet(); load();
-      } catch(e) { toast('저장하지 못했어요. 인터넷을 확인해 주세요'); }
+      } catch(e) { toast('저장하지 못했어요. ' + errMsg(e)); }
     };
     s.querySelector('#cancel').onclick = () => { ls.set('rpg_pray_start', 0); clearInterval(PTIMER); closeSheet(); toast('기도 시간을 지웠어요'); };
   } else {
@@ -982,10 +1088,43 @@ function openFw(k, keep){
   // 종류 고르기: 쓰던 글은 그대로 들고 간다
   s.querySelectorAll('[data-kind]').forEach(c => c.onclick = () => { if (c.dataset.kind !== k) openFw(c.dataset.kind, s.querySelector('#tx').value); });
   if (keep) s.querySelector('#tx').value = keep;
+  // 고치기·지우기(2026-11-17, 본인 것만 · 서버 rpg_spirit_edit·rpg_spirit_del)
+  const acts = e => `<div class="small" style="margin-top:6px;text-align:right"><a href="#" data-ed="${e.id}">고치기</a> · <a href="#" data-del="${e.id}" style="color:#b33">지우기</a></div>`;
   const list = () => { const a = spOf(k);
     s.querySelector('#ls').innerHTML = a.length ? a.map(e => k === 'SOC'
-      ? `<div class="task" style="display:block"><div>${esc(e.situation||'')}</div>${e.learned ? `<div class="mute" style="margin-top:4px">→ ${esc(e.learned)}</div>` : `<div class="mute" style="margin-top:4px"><span class="chip" data-l="${e.id}">배운 것 적기</span></div>`}</div>`
-      : `<div class="task" style="display:block">${e.target ? `<b>${esc(e.target)}</b> — ` : ''}${esc(e.body||'')}</div>`).join('') : '<span class="mute">아직 없어요</span>';
+      ? `<div class="task" style="display:block"><div>${esc(e.situation||'')}</div>${e.learned ? `<div class="mute" style="margin-top:4px">→ ${esc(e.learned)}</div>` : `<div class="mute" style="margin-top:4px"><span class="chip" data-l="${e.id}">배운 것 적기</span></div>`}${acts(e)}</div>`
+      : `<div class="task" style="display:block">${e.target ? `<b>${esc(e.target)}</b> — ` : ''}${esc(e.body||'')}${acts(e)}</div>`).join('') : '<span class="mute">아직 없어요</span>';
+    const ta = 'width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:10px;margin-top:4px';
+    s.querySelectorAll('[data-del]').forEach(c => c.onclick = ev => { ev.preventDefault();
+      const row = c.parentElement;
+      row.innerHTML = `지울까요? <a href="#" data-yes style="color:#b33">지우기</a> · <a href="#" data-no>아니요</a>`;
+      row.querySelector('[data-no]').onclick = x => { x.preventDefault(); list(); };
+      row.querySelector('[data-yes]').onclick = async x => { x.preventDefault();
+        try { const r = await rpc('rpg_spirit_del', {p_token: token(), p_id: c.dataset.del});
+          if (r.error) return toast(r.error);
+          await spiritDay(); list(); toast('지웠어요'); load();
+        } catch(e) { toast(errMsg(e)); } };
+    });
+    s.querySelectorAll('[data-ed]').forEach(c => c.onclick = ev => { ev.preventDefault();
+      const e = a.find(x => x.id === c.dataset.ed); if (!e) return;
+      const box = c.closest('.task');
+      box.innerHTML = (k === '칭찬' ? `<input data-f="tg" placeholder="누구를" value="${esc(e.target||'')}">` : '')
+        + `<textarea data-f="tx" rows="3" style="${ta}">${esc(k === 'SOC' ? e.situation||'' : e.body||'')}</textarea>`
+        + (k === 'SOC' ? `<textarea data-f="ln" rows="2" placeholder="배운 것" style="${ta}">${esc(e.learned||'')}</textarea>` : '')
+        + `<div class="row" style="gap:8px;margin-top:6px"><button class="ghost" data-f="no" style="padding:8px">취소</button><button data-f="ok" style="padding:8px">저장</button></div>`;
+      const f = n => box.querySelector(`[data-f="${n}"]`);
+      f('no').onclick = () => list();
+      f('ok').onclick = async () => {
+        const tx = f('tx').value.trim(); if (!tx) return toast('적을 것을 넣어 주세요');
+        const args = {p_token: token(), p_id: e.id, p_text: tx};
+        if (k === '칭찬') args.p_target = f('tg').value.trim();
+        if (k === 'SOC') args.p_learned = f('ln').value.trim();
+        try { const r = await rpc('rpg_spirit_edit', args);
+          if (r.error) return toast(r.error);
+          await spiritDay(); list(); toast('고쳤어요');
+        } catch(err) { toast(errMsg(err)); }
+      };
+    });
     // 앱(WebView)에서는 prompt() 창이 안 떠서 그 자리에 칸을 연다
     s.querySelectorAll('[data-l]').forEach(c => c.onclick = () => {
       const box = c.parentElement;
@@ -993,8 +1132,8 @@ function openFw(k, keep){
       box.querySelector('input').focus();
       box.querySelector('button').onclick = async () => {
         const v = box.querySelector('input').value.trim(); if (!v) return;
-        const r = await rpc('rpg_spirit_learned', {p_token: token(), p_id: c.dataset.l, p_learned: v}).catch(() => null);
-        if (r && r.ok) { await spiritDay(); list(); toast('배운 것 적었어요'); } else toast('저장하지 못했어요');
+        const r = await rpc('rpg_spirit_learned', {p_token: token(), p_id: c.dataset.l, p_learned: v}).catch(e => ({error: errMsg(e)}));
+        if (r && r.ok) { await spiritDay(); list(); toast('배운 것 적었어요'); } else toast(r && r.error || '저장하지 못했어요.' + AGAIN);
       };
     }); };
   list();
@@ -1008,7 +1147,7 @@ function openFw(k, keep){
       if (r.error) { err.textContent = r.error; return; }
       s.querySelector('#tx').value = ''; if (k === 'SOC') s.querySelector('#ln').value = '';
       await spiritDay(); list(); toast(k + ' 적었어요'); load();
-    } catch(e) { err.textContent = '인터넷을 확인해 주세요'; }
+    } catch(e) { err.textContent = errMsg(e); }
   };
   s.querySelector('#tx').oninput = () => { s.querySelector('#err').textContent = ''; };
 }
@@ -1029,10 +1168,10 @@ function openDiary(){
     try { const r = await rpc('rpg_diary_save', {p_token: token(), p_body: tx});
       if (r.error) { err.textContent = r.error; return; }
       closeSheet(); toast('일기 저장했어요'); load();
-    } catch(e) { err.textContent = '인터넷을 확인해 주세요'; }
+    } catch(e) { err.textContent = errMsg(e); }
   };
 }
-window.onNative = ev => { if (ev === 'resume') load(); };
+window.onNative = ev => { if (ev === 'resume') { load(); if (document.getElementById('setupSheet')) setupView(); } };
 let y0 = null; // 아래로 당기면 새로고침
 addEventListener('touchstart', e => { y0 = scrollY === 0 ? e.touches[0].clientY : null; }, {passive:true});
 addEventListener('touchend', e => { if (y0 !== null && e.changedTouches[0].clientY - y0 > 90) { toast('새로 불러와요'); load(); } y0 = null; });

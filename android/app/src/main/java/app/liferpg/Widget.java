@@ -7,6 +7,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.view.View;
 import android.widget.RemoteViews;
 
 import org.json.JSONArray;
@@ -68,6 +69,11 @@ public class Widget extends AppWidgetProvider {
                     v.setTextViewText(R.id.sub, "오늘 " + n + "/" + act + "칸");
                 } catch (Exception ignored) {}
             }
+            // 안 연 기록의 버튼은 숨김(2026-11-17): 🏠 건강 · 👛 재정 · ⛪ 영성 · 업무 줄
+            v.setViewVisibility(R.id.bHome, packOpen(ctx, "home") ? View.VISIBLE : View.GONE);
+            v.setViewVisibility(R.id.bWallet, packOpen(ctx, "wallet") ? View.VISIBLE : View.GONE);
+            v.setViewVisibility(R.id.bFather, packOpen(ctx, "father") ? View.VISIBLE : View.GONE);
+            v.setViewVisibility(R.id.todoBar, packOpen(ctx, "work") ? View.VISIBLE : View.GONE);
             // 버튼: 앱을 열고 그 창
             v.setOnClickPendingIntent(R.id.head, openApp(ctx, null, 70));
             v.setOnClickPendingIntent(R.id.bHome, openApp(ctx, "home", 71));
@@ -87,6 +93,14 @@ public class Widget extends AppWidgetProvider {
             m.updateAppWidget(id, v);
         }
         m.notifyAppWidgetViewDataChanged(ids, R.id.list);
+    }
+
+    // 연 기록인지: 화면이 넘겨 준 요약의 packs. 요약이 없거나 옛 요약이면 보인다(예전처럼)
+    static boolean packOpen(Context ctx, String k) {
+        try {
+            JSONObject p = new JSONObject(Store.get(ctx).summary()).optJSONObject("packs");
+            return p == null || p.optBoolean(k, true);
+        } catch (Exception e) { return true; }
     }
 
     // 업무 기록 위젯과 같은 버튼(2026-11-12 룡 「할 일 추가·맡기기·확인할 일·요청받은 일 개수」). 숫자는 TodayService가 받아 둔 것

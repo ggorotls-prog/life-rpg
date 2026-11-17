@@ -180,6 +180,14 @@ public class MainActivity extends Activity {
         }
         @JavascriptInterface public String version() { return BuildConfig.VERSION_NAME; }
 
+        // 📱 켜야 할 것(2026-11-17): 알림이 켜져 있는지 · 이 앱 알림 설정 화면
+        @JavascriptInterface public boolean notifyOn() { return Updater.notificationsOn(MainActivity.this); }
+        @JavascriptInterface public void openNotify() {
+            open(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName()));
+        }
+        // 가입 신청한 닉네임(승인 기다림). 15분 확인(Daily.notices)이 승인·거절되면 알림을 띄운다
+        @JavascriptInterface public void setWait(String nick) { Store.get(MainActivity.this).setWait(nick); }
+
         // 🏠 집: 건강 기록 화면 그 자체를 이 앱 안에서 연다(HealthActivity). 돌아오면 onNative('resume')로 다시 불러와 +EXP
         @JavascriptInterface public void openHealth() { MainActivity.this.openHealth(); }
 

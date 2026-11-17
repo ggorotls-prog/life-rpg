@@ -22,7 +22,16 @@ final class Store {
         e.apply();
     }
 
-    // {lv, pct, today, on:[1/0/-1 × 6], names:[...], xp}
+    // 가입 신청한 닉네임(승인 기다림, 화면이 넘겨 줌). 15분 확인이 승인·거절을 알림으로 알린 뒤 비운다
+    String waitNick() { return p.getString("wait", ""); }
+    void setWait(String n) { p.edit().putString("wait", n == null ? "" : n).apply(); }
+    // 지난 확인 때 본 것: 주인의 기다리는 신청 수, 구성원의 확장팩 상태({팩: 상태}). 늘어난 것만 알린다
+    int seenPending() { return p.getInt("seenPending", 0); }
+    void setSeenPending(int n) { p.edit().putInt("seenPending", n).apply(); }
+    String seenPacks() { return p.getString("seenPacks", "{}"); }
+    void setSeenPacks(String json) { p.edit().putString("seenPacks", json == null ? "{}" : json).apply(); }
+
+    // {lv, pct, today, on:[1/0/-1 × 6], names:[...], xp, packs:{home,wallet,father,work}}
     String summary() { return p.getString("summary", ""); }
     void setSummary(String json) { p.edit().putString("summary", json == null ? "" : json).apply(); }
 }

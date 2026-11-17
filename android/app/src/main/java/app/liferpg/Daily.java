@@ -102,6 +102,59 @@ public class Daily extends BroadcastReceiver {
         }
     }
 
+    // ---- 신청·승인 알림(2026-11-17): 새 서버 없이 아래 15분 확인에서 본다 ----
+    // 주인: 기다리는 신청이 늘면 「새 신청 N건」. 구성원: 신청한 기록이 열리면 「○○ 기록이 열렸어요」.
+    // 로그인 전(가입 신청함): 승인·거절되면 알림. 서버 함수가 아직 없거나 인터넷이 안 되면 조용히 넘어간다.
+    private static final String CH_NOTE = "notice";
+    static void notices(Context ctx) {
+        Store st = Store.get(ctx);
+        try {
+            String t = st.token();
+            if (!t.isEmpty()) {
+                Net.Result r = Net.rpc("rpg_me", new JSONObject().put("p_token", t).toString());
+                if (r.status != 200) return;
+                JSONObject o = new JSONObject(r.body);
+                if (o.optBoolean("owner")) {
+                    int n = o.optInt("pending");
+                    if (n > st.seenPending()) notice(ctx, 2140, "새 신청 " + n + "건", "눌러서 승인하거나 거절해 주세요");
+                    st.setSeenPending(n);
+                } else {
+                    JSONObject packs = o.optJSONObject("packs"), before = new JSONObject(st.seenPacks());
+                    StringBuilder opened = new StringBuilder();
+                    if (packs != null) for (java.util.Iterator<String> it = packs.keys(); it.hasNext(); ) {
+                        String k = it.next();
+                        if (!"open".equals(packs.optString(k)) || !"requested".equals(before.optString(k))) continue;
+                        if (opened.length() > 0) opened.append(" · ");
+                        opened.append(k);
+                    }
+                    if (opened.length() > 0) notice(ctx, 2141, opened + " 기록이 열렸어요", "눌러서 마을에서 보세요");
+                    st.setSeenPacks(packs == null ? "{}" : packs.toString());
+                }
+                return;
+            }
+            String nick = st.waitNick();
+            if (nick.isEmpty()) return;
+            Net.Result r = Net.rpc("rpg_join_status", new JSONObject().put("p_nick", nick).toString());
+            if (r.status != 200) return;
+            String s = new JSONObject(r.body).optString("status");
+            if ("approved".equals(s)) { notice(ctx, 2142, "가입이 승인됐어요", nick + "(으)로 로그인해 주세요"); st.setWait(""); }
+            else if ("rejected".equals(s)) { notice(ctx, 2142, "가입이 승인되지 않았어요", "궁금하면 초대한 사람(관리자)에게 물어봐 주세요"); st.setWait(""); }
+        } catch (Exception ignored) {}
+    }
+
+    private static void notice(Context ctx, int id, String title, String text) {
+        NotificationManager nm = ctx.getSystemService(NotificationManager.class);
+        nm.createNotificationChannel(new NotificationChannel(CH_NOTE, "신청·승인 알림", NotificationManager.IMPORTANCE_DEFAULT));
+        Notification note = new Notification.Builder(ctx, CH_NOTE)
+                .setSmallIcon(R.drawable.ic_notify)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setContentIntent(Updater.openApp(ctx))
+                .setAutoCancel(true)
+                .build();
+        try { nm.notify(id, note); } catch (SecurityException ignored) {}
+    }
+
     // ---- 15분마다: 위젯 새로 그리기 + 새 버전 알림 (2026-11-17 룡: 다른 기록 앱과 같게 1시간 → 15분) ----
     public static class Job extends android.app.job.JobService {
         static final long EVERY = 15 * 60_000L;
@@ -123,6 +176,7 @@ public class Daily extends BroadcastReceiver {
                 try {
                     fetchToday(app);
                     Updater.notifyIfNew(app);
+                    notices(app);
                 } finally { jobFinished(p, false); }
             }).start();
             return true;

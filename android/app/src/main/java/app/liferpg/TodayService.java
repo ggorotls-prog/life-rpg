@@ -80,6 +80,7 @@ public class TodayService extends RemoteViewsService {
             boolean allowed = ctx.checkSelfPermission(Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED;
             if (allowed) try { day.addAll(events(today, tag(me))); } catch (Exception ignored) {}
 
+            if (!Widget.packOpen(ctx, "work")) tasks = null; // 업무 기록을 안 열었으면 할 일은 안 보임(2026-11-17)
             if (me != null && tasks != null) {
                 for (int i = 0; i < tasks.length(); i++) {
                     JSONObject t = tasks.optJSONObject(i);
