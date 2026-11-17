@@ -23,6 +23,13 @@ public class MainActivity extends Activity {
 
     private WebView web;
     private boolean loaded, backFromSecurity;
+    // 잠금화면 앞에 마을(LockFront): 잠금을 안 푼 동안 화면을 덮어 누름을 받는 판, 잠금이 풀렸는지 듣는 귀
+    private android.widget.FrameLayout root;
+    private View lockCover;
+    private boolean lockMode;
+    private final android.content.BroadcastReceiver unlocked = new android.content.BroadcastReceiver() {
+        @Override public void onReceive(Context c, Intent i) { exitLock(); }
+    };
 
     @Override
     protected void onCreate(Bundle b) {
@@ -56,7 +63,7 @@ public class MainActivity extends Activity {
             }
         });
         web.loadUrl("file:///android_asset/index.html");
-        android.widget.FrameLayout root = new android.widget.FrameLayout(this);
+        root = new android.widget.FrameLayout(this);
         root.setBackgroundColor(bg);
         root.addView(web);
         setContentView(root);
@@ -82,6 +89,8 @@ public class MainActivity extends Activity {
         SpiritApp.SignIn.ensure(this);
         // 관계 기록: 15분 통화 확인, RPG 로그인으로 관계 기록 열쇠 받기
         RelApp.start(this);
+        if (getIntent() != null && getIntent().getBooleanExtra(LockFront.EXTRA_ON, false)) LockFront.set(this, true);   // 가상 폰 시험
+        LockFront.start(this);
         take(getIntent());
         if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
@@ -92,6 +101,7 @@ public class MainActivity extends Activity {
     private String openWhat;
 
     private void take(Intent i) {
+        if (i != null && i.getBooleanExtra(LockFront.EXTRA, false)) { enterLock(); return; }
         if (i == null || i.getStringExtra(EXTRA_OPEN) == null) return;
         // 🏠 집 = 건강 기록 화면(HealthActivity)을 바로 연다(2026-11-15)
         if ("home".equals(i.getStringExtra(EXTRA_OPEN))) { openHealth(); return; }
@@ -104,6 +114,57 @@ public class MainActivity extends Activity {
         // ⛪ 영성 기록 화면(묵상 탭)
         if ("spirit".equals(i.getStringExtra(EXTRA_OPEN))) { startActivity(SpiritApp.screen(this, "묵상")); return; }
         openWhat = i.getStringExtra(EXTRA_OPEN);
+    }
+
+    // ── 잠금화면 앞에 마을(2026-11-18) ──
+    // 잠금 위에 이 화면을 올리고, 투명한 판으로 덮어 보기만 하게 한다. 판을 누르면 잠금 풀기 → 풀리면 판을 걷는다.
+    private void enterLock() {
+        android.app.KeyguardManager km = getSystemService(android.app.KeyguardManager.class);
+        if (km == null || !km.isKeyguardLocked()) { exitLock(); return; }   // 잠금이 없거나 이미 풀린 폰: 그냥 마을
+        setShowWhenLocked(true);
+        if (lockMode) return;
+        lockMode = true;
+        android.widget.FrameLayout cover = new android.widget.FrameLayout(this);
+        android.widget.TextView hint = new android.widget.TextView(this);
+        hint.setText("🔒 누르면 잠금 풀기");
+        hint.setTextSize(13);
+        hint.setTextColor(Color.WHITE);
+        hint.setPadding(28, 12, 28, 12);
+        android.graphics.drawable.GradientDrawable pill = new android.graphics.drawable.GradientDrawable();
+        pill.setColor(0x99000000);
+        pill.setCornerRadius(40);
+        hint.setBackground(pill);
+        android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams(-2, -2, android.view.Gravity.CENTER_HORIZONTAL | android.view.Gravity.TOP);
+        lp.topMargin = 12;
+        cover.addView(hint, lp);
+        cover.setClickable(true);
+        cover.setOnClickListener(v -> {
+            android.app.KeyguardManager k = getSystemService(android.app.KeyguardManager.class);
+            if (k == null || !k.isKeyguardLocked()) { exitLock(); return; }
+            k.requestDismissKeyguard(this, new android.app.KeyguardManager.KeyguardDismissCallback() {
+                @Override public void onDismissSucceeded() { exitLock(); }
+            });
+        });
+        lockCover = cover;
+        root.addView(cover, new android.widget.FrameLayout.LayoutParams(-1, -1));
+        try { registerReceiver(unlocked, new android.content.IntentFilter(Intent.ACTION_USER_PRESENT)); } catch (Exception ignored) {}
+        if (loaded) js("window.onNative && onNative('resume')");
+    }
+
+    private void exitLock() {
+        runOnUiThread(() -> {
+            setShowWhenLocked(false);
+            if (!lockMode) return;
+            lockMode = false;
+            if (lockCover != null) { root.removeView(lockCover); lockCover = null; }
+            try { unregisterReceiver(unlocked); } catch (Exception ignored) {}
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (lockMode) { try { unregisterReceiver(unlocked); } catch (Exception ignored) {} }
+        super.onDestroy();
     }
 
     void openLedger() {
@@ -132,6 +193,12 @@ public class MainActivity extends Activity {
         super.onResume();
         visible = true;
         if (loaded) js("window.onNative && onNative('resume')");
+        // 잠금화면 위에 떠 있는 동안에는 보기만: 업데이트·알림을 묻지 않는다. 그 사이 잠금이 풀렸으면 판을 걷는다
+        if (lockMode) {
+            android.app.KeyguardManager km = getSystemService(android.app.KeyguardManager.class);
+            if (km != null && km.isKeyguardLocked()) return;
+            exitLock();
+        }
         // 자는 중(잘게요 뒤)에는 마을 대신 건강 기록 화면으로(건강 기록 앱이 그 화면에 고정되는 것과 같게). 업데이트도 묻지 않는다
         if (LockService.isLocked(this)) { openHealth(); return; }
         Context app = getApplicationContext();
@@ -156,6 +223,7 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (lockMode) { moveTaskToBack(true); return; }   // 잠금화면 위에서는 뒤로 = 마을을 내리고 잠금화면
         if (!loaded || web == null) { super.onBackPressed(); return; }
         web.evaluateJavascript("window.appBack ? appBack() : false", v -> {
             if (!"true".equals(v)) finish();
@@ -184,6 +252,13 @@ public class MainActivity extends Activity {
         @JavascriptInterface public boolean notifyOn() { return Updater.notificationsOn(MainActivity.this); }
         @JavascriptInterface public void openNotify() {
             open(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName()));
+        }
+        // 🏘 잠금화면 앞에 마을(2026-11-18): 켜짐 · 켜고 끄기 · 「다른 앱 위에 표시」 허용됐나 · 그 설정 화면
+        @JavascriptInterface public boolean lockFront() { return LockFront.on(MainActivity.this); }
+        @JavascriptInterface public void setLockFront(boolean v) { LockFront.set(getApplicationContext(), v); }
+        @JavascriptInterface public boolean overlayOn() { return LockFront.allowed(MainActivity.this); }
+        @JavascriptInterface public void openOverlay() {
+            open(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())));
         }
         // 가입 신청한 닉네임(승인 기다림). 15분 확인(Daily.notices)이 승인·거절되면 알림을 띄운다
         @JavascriptInterface public void setWait(String nick) { Store.get(MainActivity.this).setWait(nick); }

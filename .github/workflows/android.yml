@@ -364,6 +364,28 @@ jobs:
             adb shell cmd package query-receivers --components -a android.intent.action.PHONE_STATE | grep liferpg | tee phone.txt || true
             grep -q 'RelApp\$Call' phone.txt || { echo "통화 받기가 안 들어 있어요"; exit 1; }
             echo "통화 받기 들어 있음"
+            # ⑰ 잠금화면 앞에 마을(2026-11-18): 잠금(PIN)을 걸고 기능을 켠 뒤 화면을 껐다 켜면 마을이 잠금화면 위에 떠 있는지
+            adb shell locksettings set-pin 1234
+            adb shell appops set app.liferpg SYSTEM_ALERT_WINDOW allow
+            adb shell am force-stop app.liferpg
+            adb logcat -c
+            adb shell am start -W -n app.liferpg/.MainActivity --ez lock_front_on true
+            sleep 8
+            adb shell dumpsys activity services app.liferpg | grep -q "LockFront" || { echo "화면 꺼짐을 지켜보는 기능이 안 켜졌어요"; exit 1; }
+            adb shell input keyevent KEYCODE_HOME
+            sleep 2
+            adb shell input keyevent KEYCODE_SLEEP
+            sleep 5
+            adb shell input keyevent KEYCODE_WAKEUP
+            sleep 5
+            adb exec-out screencap -p > shot-lock.png || true
+            adb shell dumpsys window | grep -E "mDreamingLockscreen|isKeyguardShowing|KeyguardShowing|mCurrentFocus" | tee lock.txt || true
+            adb shell dumpsys activity activities | grep -E "topResumedActivity|ResumedActivity" | tee locktop.txt || true
+            adb logcat -d -b crash > crash-lock.txt || true
+            if grep -q "FATAL EXCEPTION" crash-lock.txt; then cat crash-lock.txt; exit 1; fi
+            grep -q "app.liferpg/.MainActivity" locktop.txt || { echo "잠금화면 위에 마을이 안 떴어요"; exit 1; }
+            echo "잠금화면 앞에 마을 뜸"
+            adb shell locksettings clear --old 1234 || true
       # 화면 사진(밝은·어두운): 모양 확인용
       - uses: actions/upload-artifact@v4
         if: always()
