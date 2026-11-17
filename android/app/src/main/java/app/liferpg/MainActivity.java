@@ -23,6 +23,14 @@ public class MainActivity extends Activity {
 
     private WebView web;
     private boolean loaded, backFromSecurity;
+    // 잠금화면 앞에 마을(LockFront): 잠금을 안 푼 동안 화면을 덮어 누름을 받는 판, 잠금이 풀렸는지 듣는 귀
+    private android.widget.FrameLayout root;
+    private View lockCover;
+    private boolean lockMode;
+    private android.app.AlertDialog dialog;   // 떠 있는 「새 버전」 창(잠금 위로 올라갈 때 닫는다)
+    private final android.content.BroadcastReceiver unlocked = new android.content.BroadcastReceiver() {
+        @Override public void onReceive(Context c, Intent i) { exitLock(); }
+    };
 
     @Override
     protected void onCreate(Bundle b) {
@@ -56,7 +64,7 @@ public class MainActivity extends Activity {
             }
         });
         web.loadUrl("file:///android_asset/index.html");
-        android.widget.FrameLayout root = new android.widget.FrameLayout(this);
+        root = new android.widget.FrameLayout(this);
         root.setBackgroundColor(bg);
         root.addView(web);
         setContentView(root);
@@ -82,8 +90,12 @@ public class MainActivity extends Activity {
         SpiritApp.SignIn.ensure(this);
         // 관계 기록: 15분 통화 확인, RPG 로그인으로 관계 기록 열쇠 받기
         RelApp.start(this);
+        // 가상 폰 시험에서만: 이 표시로 기능을 켠다(진짜 폰에서는 다른 앱이 몰래 켜지 못하게 받지 않는다)
+        if (getIntent() != null && getIntent().getBooleanExtra(LockFront.EXTRA_ON, false) && LockFront.emulator()) LockFront.set(this, true);
+        LockFront.start(this);
+        syncLock();
         take(getIntent());
-        if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED)
+        if (!lockMode && android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
     }
 
@@ -92,12 +104,86 @@ public class MainActivity extends Activity {
     private String openWhat;
 
     private void take(Intent i) {
+        if (i != null && i.getBooleanExtra(LockFront.EXTRA, false)) { syncLock(); return; }
         if (i == null || i.getStringExtra(EXTRA_OPEN) == null) return;
         // 2026-11-18: 바로 열지 않고 화면(openFrom)에 넘긴다. 화면이 로그인·동의·연 기록인지 본 뒤에 연다
         // (home = 건강 기록 화면, wallet = 지갑 빠른 기록, ledger = 재정 기록 화면, work = 업무 기록 화면, rel = 관계 기록 화면,
         //  spirit = 영성 기록 묵상 탭, father = 아빠 집. 가상 폰 시험도 이 길로 연다)
         openWhat = i.getStringExtra(EXTRA_OPEN);
     }
+
+    // ── 잠금화면 앞에 마을(2026-11-18) ──
+    // 잠금 위에 이 화면을 올리고, 투명한 판으로 덮어 보기만 하게 한다. 판을 누르면 잠금 풀기 → 풀리면 판을 걷는다.
+    // 판을 둘지는 늘 「지금 폰 상태」로 정한다(여는 표시에 기대지 않는다): 기능이 켜져 있고, 잠겨 있거나 화면이 꺼져 있으면 판.
+    // 화면이 다시 만들어져도(회전·어두운 화면 전환·웹 화면 죽음) onCreate·onResume이 다시 맞춘다.
+    private void syncLock() {
+        android.app.KeyguardManager km = getSystemService(android.app.KeyguardManager.class);
+        PowerManager pm = getSystemService(PowerManager.class);
+        boolean want = LockFront.on(this) && km != null && (km.isKeyguardLocked() || (pm != null && !pm.isInteractive()));
+        if (want) enterLock(); else exitLock();
+    }
+
+    private void enterLock() {
+        setShowWhenLocked(true);
+        if (dialog != null) { try { dialog.dismiss(); } catch (Exception ignored) {} dialog = null; }   // 「새 버전」 창은 판이 못 덮는다
+        if (loaded) js("window.onNative && onNative('lock')");   // 열려 있던 창을 닫고 마을로(적던 글·보고서가 잠금 위에 보이지 않게)
+        if (lockMode) return;
+        lockMode = true;
+        if (web != null) {   // 키보드·화면 읽어 주기로도 아래 화면에 닿지 않게
+            web.setFocusable(false);
+            web.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        }
+        android.widget.FrameLayout cover = new android.widget.FrameLayout(this);
+        android.widget.TextView hint = new android.widget.TextView(this);
+        hint.setText("🔒 누르면 잠금 풀기");
+        hint.setTextSize(13);
+        hint.setTextColor(Color.WHITE);
+        hint.setPadding(28, 12, 28, 12);
+        android.graphics.drawable.GradientDrawable pill = new android.graphics.drawable.GradientDrawable();
+        pill.setColor(0x99000000);
+        pill.setCornerRadius(40);
+        hint.setBackground(pill);
+        android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams(-2, -2, android.view.Gravity.CENTER_HORIZONTAL | android.view.Gravity.BOTTOM);
+        lp.bottomMargin = Math.round(96 * getResources().getDisplayMetrics().density);
+        cover.addView(hint, lp);
+        cover.setClickable(true);
+        cover.setFocusable(true);
+        cover.setOnClickListener(v -> {
+            android.app.KeyguardManager k = getSystemService(android.app.KeyguardManager.class);
+            if (k == null || !k.isKeyguardLocked()) { exitLock(); return; }
+            k.requestDismissKeyguard(this, new android.app.KeyguardManager.KeyguardDismissCallback() {
+                @Override public void onDismissSucceeded() { exitLock(); }
+            });
+        });
+        lockCover = cover;
+        root.addView(cover, new android.widget.FrameLayout.LayoutParams(-1, -1));
+        try { registerReceiver(unlocked, new android.content.IntentFilter(Intent.ACTION_USER_PRESENT)); } catch (Exception ignored) {}
+    }
+
+    private void exitLock() {
+        runOnUiThread(() -> {
+            setShowWhenLocked(false);
+            if (!lockMode) return;
+            lockMode = false;
+            if (lockCover != null) { root.removeView(lockCover); lockCover = null; }
+            if (web != null) {
+                web.setFocusable(true);
+                web.setFocusableInTouchMode(true);
+                web.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
+            }
+            try { unregisterReceiver(unlocked); } catch (Exception ignored) {}
+            if (visible) resumeChecks();   // 잠금 위에서 바로 풀고 들어온 길: 취침 확인·새 버전 확인을 여기서
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (lockMode) { try { unregisterReceiver(unlocked); } catch (Exception ignored) {} }
+        super.onDestroy();
+    }
+
+    @Override
+    public void onConfigurationChanged(android.content.res.Configuration c) { super.onConfigurationChanged(c); }
 
     void openLedger() {
         runOnUiThread(() -> { try { startActivity(new Intent(this, WalletActivity.class)); } catch (Exception ignored) {} });
@@ -125,6 +211,15 @@ public class MainActivity extends Activity {
         super.onResume();
         visible = true;
         if (loaded) js("window.onNative && onNative('resume')");
+        // 잠금화면 위에 떠 있는 동안에는 보기만: 업데이트·알림을 묻지 않는다. 잠금이 풀렸으면 syncLock이 판을 걷고 아래 확인을 부른다
+        LockFront.start(this);
+        boolean was = lockMode;
+        syncLock();
+        if (lockMode || was) return;
+        resumeChecks();
+    }
+
+    private void resumeChecks() {
         // 자는 중(잘게요 뒤)에는 마을 대신 건강 기록 화면으로(건강 기록 앱이 그 화면에 고정되는 것과 같게). 업데이트도 묻지 않는다
         if (LockService.isLocked(this)) { openHealth(); return; }
         Context app = getApplicationContext();
@@ -149,6 +244,7 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (lockMode) { moveTaskToBack(true); return; }   // 잠금화면 위에서는 뒤로 = 마을을 내리고 잠금화면
         if (!loaded || web == null) { super.onBackPressed(); return; }
         web.evaluateJavascript("window.appBack ? appBack() : false", v -> {
             if (!"true".equals(v)) finish();
@@ -181,6 +277,13 @@ public class MainActivity extends Activity {
         @JavascriptInterface public boolean notifyOn() { return Updater.notificationsOn(MainActivity.this); }
         @JavascriptInterface public void openNotify() {
             open(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName()));
+        }
+        // 🏘 잠금화면 앞에 마을(2026-11-18): 켜짐 · 켜고 끄기 · 「다른 앱 위에 표시」 허용됐나 · 그 설정 화면
+        @JavascriptInterface public boolean lockFront() { return LockFront.on(MainActivity.this); }
+        @JavascriptInterface public void setLockFront(boolean v) { LockFront.set(getApplicationContext(), v); }
+        @JavascriptInterface public boolean overlayOn() { return LockFront.allowed(MainActivity.this); }
+        @JavascriptInterface public void openOverlay() {
+            open(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())));
         }
         // 가입 신청한 닉네임(승인 기다림). 15분 확인(Daily.notices)이 승인·거절되면 알림을 띄운다
         @JavascriptInterface public void setWait(String nick) { Store.get(MainActivity.this).setWait(nick); }
@@ -334,7 +437,7 @@ public class MainActivity extends Activity {
 
     private void askUpdate() {
         if (isFinishing()) return;
-        new android.app.AlertDialog.Builder(this)
+        dialog = new android.app.AlertDialog.Builder(this)
                 .setTitle("새 버전이 있어요")
                 .setMessage("업데이트하려면 삼성 「자동 차단」을 잠깐 꺼야 해요.\n\n「업데이트」를 누르면 보안 화면이 열려요. 「자동 차단」을 끄고 뒤로 오면 업데이트가 시작돼요.\n(자동 차단은 30분 뒤 저절로 다시 켜져요)")
                 .setPositiveButton("업데이트", (d, w) -> {
@@ -349,7 +452,7 @@ public class MainActivity extends Activity {
 
     private void askInstallPermission() {
         if (isFinishing()) return;
-        new android.app.AlertDialog.Builder(this)
+        dialog = new android.app.AlertDialog.Builder(this)
                 .setTitle("새 버전이 있어요")
                 .setMessage("앞으로 저절로 업데이트되게, 다음 화면에서 「이 출처 허용」을 켜 주세요. 한 번만 하면 돼요.")
                 .setPositiveButton("켜러 가기", (d, w) -> {

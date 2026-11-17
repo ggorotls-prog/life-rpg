@@ -30,6 +30,8 @@
     <uses-permission android:name="android.permission.READ_CALL_LOG" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- 🏘 잠금화면 앞에 마을(2026-11-18): 화면 꺼짐을 지켜보는 늘 떠 있는 알림 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <!-- 아빠 집: 영성 기록 앱을 열려면 그 앱이 보여야 한다(안드로이드 11+) -->
     <queries>
@@ -58,6 +60,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|uiMode|density"
             android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -96,6 +99,17 @@
             android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <receiver android:name=".UpdateReceiver" android:exported="false" />
+
+        <!-- 🏘 잠금화면 앞에 마을(2026-11-18 룡): 화면이 꺼질 때 마을 화면을 잠금화면 위에 올려 둔다. 기본은 꺼짐 -->
+        <service android:name=".LockFront" android:exported="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="잠금화면 위에 이 앱의 첫 화면을 보여 주려고 화면 꺼짐을 지켜본다" />
+        </service>
+        <receiver android:name=".LockFront$Boot" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- 🏠 집 = 건강 기록 화면 그 자체(2026-11-15 룡). 건강 기록 앱 MainActivity와 같은 설정 -->
         <activity
