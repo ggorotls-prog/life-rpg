@@ -294,10 +294,11 @@ function render(res, data){
       <span onclick="openSettings()" style="text-decoration:underline">⚙ 설정</span> · <span onclick="logout()" style="text-decoration:underline">로그아웃</span>${window.Native ? ' · 버전 '+Native.version() : ''}</div>`;
   levelUps(res, cl);
   ls.set('rpg_last', {date: res.today, xp: res.totalXp});
+  const wOk = p => !(ME && ME.need_consent && !ME.owner) && has(p);   // 동의 전이면 위젯 버튼도 모두 숨김(2026-11-18)
   if (window.Native && Native.setSummary) Native.setSummary(JSON.stringify({
     lv: cl, pct: Math.round(cp*100), today: res.today,
     on: AREAS.map(a => res.areas[a].ready ? (res.areas[a].todayItems ? 1 : 0) : -1), names: AREAS, xp: res.todayXp,
-    packs: {home: has('건강'), wallet: has('재정'), father: has('영성'), work: has('업무')} }));   // 위젯: 안 연 기록 버튼은 숨김
+    packs: {home: wOk('건강'), wallet: wOk('재정'), father: wOk('영성'), work: wOk('업무')} }));   // 위젯: 안 연 기록 버튼은 숨김
 }
 
 function levelUps(res, cl){
@@ -315,7 +316,8 @@ function levelUps(res, cl){
 }
 
 async function load(){
-  if (!token()) return loginView();
+  if (!token()) { if (document.getElementById('sg_go')) return; return loginView(); }   // 가입 중(처리방침 보고 돌아옴)이면 적던 것 그대로
+
   try {
     const [data, home, gd, me] = await Promise.all([rpc('rpg_days', {p_token: token()}), rpc('rpg_home', {p_token: token()}),
       rpc('rpg_gender', {p_token: token()}).catch(() => ({failed: true})),
@@ -338,13 +340,14 @@ async function load(){
     // 첫 로그인 뒤 한 번: 켜야 할 것(알림·캘린더·배터리·위젯)
     if (!ls.get('rpg_setup_seen', false) && !document.querySelector('.sheet')) setupView();
   } catch(e) {
-    if (e && e.body && JSON.stringify(e.body).includes('auth')) { setToken(''); return loginView(); }
+    if (e && e.body && (e.body.message === 'auth' || e.body === 'auth')) { setToken(''); return loginView(); }
     if (!RES) document.getElementById('app').innerHTML = `<div class="card">불러오지 못했어요.<br>${esc(errMsg(e))}<br><br><button onclick="load()">다시</button></div>`;
     else toast('새로 못 불러왔어요. 아래로 당겨 다시 해 주세요');
   }
 }
 
 function loginView(){
+  wipeMe();   // 로그인 화면 = 아무도 안 들어온 상태: 앞사람 것은 남기지 않는다(2026-11-18)
   document.getElementById('nav').style.display = 'none';
   document.getElementById('town').innerHTML = '';
   document.getElementById('app').style.display = '';
@@ -365,6 +368,9 @@ function loginView(){
     try { const r = await rpc('rpg_login', {p_id: id, p_pw: pw});
       if (r.error) { err.textContent = r.error; return; }
       if (waitNick() && waitNick().toLowerCase() === id.trim().toLowerCase()) setWait('');   // 승인돼서 들어옴
+      // 다른 사람이 들어오면 앞사람의 못 보낸 할 일까지 지운다. 같은 사람이면 남겨 둔 것이 그대로 보내진다
+      const prev = ls.get('rpg_user', ''); if (prev && prev !== r.name) { try { window.Native && Native.wipeAll && Native.wipeAll(); } catch(e) {} }
+      ls.set('rpg_user', r.name || '');
       setToken(r.token); load();
     } catch(e) { err.textContent = errMsg(e); }
   };
@@ -377,10 +383,22 @@ async function checkWait(){
   const b = document.getElementById('waitb'); if (!b || !r) return;
   if (r.status === 'approved') b.innerHTML = '✅ 가입이 승인됐어요. 비밀번호를 넣고 들어가 주세요.';
   else if (r.status === 'rejected') { b.innerHTML = '가입이 승인되지 않았어요. 궁금하면 초대한 사람(관리자)에게 물어봐 주세요.'; setWait(''); }
+  else if (r.status === 'none') { b.innerHTML = '신청이 지워졌어요. 다시 신청해 주세요.'; setWait(''); }   // 7일 넘게 기다린 신청은 지워진다
 }
 
-window.logout = () => { const t = token(); rpc('rpg_logout', {p_token: t}).catch(() => {}); setToken(''); ls.set('rpg_seen', null); loginView(); };
+window.logout = () => { const t = token(); rpc('rpg_logout', {p_token: t}).catch(() => {}); loginView(); };
+// 로그아웃·탈퇴·로그인 풀림(2026-11-18): 그 사람 것을 모두 지운다 — 화면 변수, 이 폰에 둔 것, 위젯 요약, 앱 안 다른 기록 화면의 로그인.
+// 남기는 것: 가입 승인 기다리는 닉네임(rpg_wait)·적던 가입 신청(rpg_signup_draft) = 로그인 전 상태, 「켜야 할 것」을 봤는지(rpg_setup_seen) = 이 폰 설정
+function wipeMe(){
+  setToken('');
+  ME = null; HOME = null; RES = null; GENDER = null; ASKED = false; PENDING = null; CHANGED = false; LOOSE_OPEN = false; CUR = 'town';
+  SP = null; BREAD = null; BOPEN = null; BROUNDS = 0; BSTART = null; BDONE = []; clearInterval(PTIMER);
+  for (const k of ['rpg_last','rpg_seen','rpg_tab','rpg_bopen','rpg_pray_start','rpg_fw_kind']) { try { localStorage.removeItem(k); } catch(e) {} }
+  document.querySelectorAll('.sheet,.ov').forEach(x => x.remove());
+  try { window.Native && Native.wipe && Native.wipe(); } catch(e) {}
+}
 window.appBack = () => {
+  if (document.getElementById('consentSheet')) return false;   // 동의 창은 뒤로 가기로 안 닫힘(앱만 나감). 동의하거나 로그아웃해야 닫힘
   if (document.querySelector('.sheet')) { closeSheet(); return true; }
   const o = document.querySelector('.ov'); if (o) { o.remove(); return true; }
   if (CUR !== 'town' && document.getElementById('nav').style.display !== 'none') { tab('town'); return true; }
@@ -426,7 +444,7 @@ function packBlock(p, pre){
     <div style="font-weight:700;margin-bottom:4px">${p.icon} ${p.b} (${p.k})</div>
     ${ck(pre+'c_'+p.k, `[${p.b}을 열려면 필요] ${p.main}`)}
     ${p.sens ? ck(pre+'c_'+p.k+'_민감', `[${p.b}을 열려면 필요] ${p.sens}`) : ''}
-    <div class="small" style="margin-left:28px"><b>${p.what}을 서버에 저장해요 · ${p.b}을 닫거나 탈퇴하면 30일 안에 지워요</b></div>
+    <div class="small" style="margin-left:28px"><b>${p.what}을 서버에 저장해요 · ${p.b}을 닫거나 탈퇴하면 30일 뒤 지워요</b></div>
     ${det(`${p.more ? '· '+p.more+'<br>' : ''}· 쓰는 곳: 내 기록을 저장하고 다시 보여 주기, 레벨 계산<br>· 동의하지 않아도 돼요. 그러면 ${p.b}만 열리지 않아요`)}
   </div>`;
 }
@@ -435,7 +453,7 @@ const REPORT_HTML = pre => `<div style="margin-top:14px;font-weight:700">성장 
   ${ck(pre+'r_ai', '[선택] 보고서를 만들 때 내 기록을 <b>미국의 AI 회사 Anthropic으로 보내요</b>.')}
   ${ck(pre+'r_sens', '[선택] <b>건강·신앙 기록</b>도 보고서에 넣어요(따로 동의).')}
   ${det(`· 만든 사람: 김귀룡 · ryong.office@gmail.com<br>· 읽는 것: 내가 연 확장팩의 기록(건강·신앙은 셋째 칸에 체크했을 때만)<br>· 쓰는 곳: 성장 보고서(요약·분석·조언)<br>
-    · Anthropic: 보고서 글을 만드는 일에 써요 · 보고서를 만들 때마다 인터넷으로 보내요 · 30일 뒤 지워요 · privacy@anthropic.com<br>
+    · Anthropic: 보고서 글을 만드는 일에 써요 · 보고서를 만들 때마다 인터넷으로 보내요 · 30일 안에 지워요 · privacy@anthropic.com<br>
     · 안 하면: 보고서를 만드는 데 내 기록을 쓰지 않아요 · ⚙ 설정에서 언제든 끌 수 있어요`)}`;
 function readConsents(pre, packs){
   const on = id => { const e = document.getElementById(id); return !!(e && e.checked); };
@@ -450,7 +468,10 @@ const pickHtml = pre => `<div class="row" style="flex-wrap:wrap;gap:6px;margin:6
 const pickedPacks = pre => PACKS.map(p => p.k).filter(k => { const e = document.getElementById(pre+'p_'+k); return e && e.checked; });
 
 // 1) 가입 신청 (로그인 화면)
-let SG = null;
+// 처리방침을 보고 돌아와도 적던 것이 남게(2026-11-18): 닉네임·캐릭터·체크는 이 폰에(rpg_signup_draft), 비밀번호는 메모리에만(SGPW)
+let SG = null, SGPW = null;
+const SGD = 'rpg_signup_draft';
+const BASE_DET = last => det('· 쓰는 곳: 로그인, 캐릭터 모양(남자·여자)<br>· 비밀번호는 알아볼 수 없게 바꿔 저장해요<br>· 맡기는 곳: 서버 회사 Supabase(서울에 저장)<br>· 개인정보를 맡아 관리하는 사람: 김귀룡 · ryong.office@gmail.com<br>· ' + last);
 window.signupView = () => {
   SG = null;
   document.getElementById('app').innerHTML = `<div class="card">
@@ -463,8 +484,8 @@ window.signupView = () => {
     <div style="margin:8px 0 4px;font-weight:700">캐릭터</div>
     <div class="row" style="gap:8px"><button class="ghost" id="sg_m" style="flex:1" onclick="sgGender('남')">🧍‍♂️ 남자</button><button class="ghost" id="sg_f" style="flex:1" onclick="sgGender('여')">🧍‍♀️ 여자</button></div>
     <div style="margin-top:12px">${ck('sg_base', '[필수] 닉네임·비밀번호·성별로 내 계정과 캐릭터를 만들어요.')}
-      <div class="small" style="margin-left:28px"><b>닉네임·비밀번호·성별을 저장해요 · 탈퇴하면 30일 안에 지워요</b></div>
-      ${det('· 쓰는 곳: 로그인, 캐릭터 모양(남자·여자)<br>· 비밀번호는 알아볼 수 없게 바꿔 저장해요<br>· 맡기는 곳: 서버 회사 Supabase(서울에 저장)<br>· 개인정보를 맡아 관리하는 사람: 김귀룡 · ryong.office@gmail.com<br>· 동의하지 않으면 가입할 수 없어요')}
+      <div class="small" style="margin-left:28px"><b>닉네임·비밀번호·성별을 저장해요 · 탈퇴하면 30일 뒤 지워요</b></div>
+      ${BASE_DET('동의하지 않으면 가입할 수 없어요')}
       ${ck('sg_age', '[필수] 만 14세 이상이에요.')}</div>
     <div style="margin-top:12px;font-weight:700">쓸 기록 고르기 <span class="small mute">(만든 사람이 열어 줘요)</span></div>
     ${pickHtml('sg_')}${PACKS.map(p => packBlock(p, 'sg_')).join('')}
@@ -472,6 +493,19 @@ window.signupView = () => {
     <div class="err" id="sg_err"></div>
     <button id="sg_go">가입 신청하기</button>
     <button class="ghost" style="margin-top:8px" onclick="loginView()">← 로그인으로</button></div>`;
+  const card = document.getElementById('app'), d = ls.get(SGD, null);
+  card.oninput = card.onchange = () => {
+    if (!document.getElementById('sg_go')) return;
+    SGPW = [document.getElementById('sg_pw').value, document.getElementById('sg_pw2').value];
+    ls.set(SGD, {nick: document.getElementById('sg_nick').value, g: SG, on: [...card.querySelectorAll('input[type=checkbox]')].filter(e => e.checked).map(e => e.id)});
+  };
+  if (SGPW) { document.getElementById('sg_pw').value = SGPW[0]; document.getElementById('sg_pw2').value = SGPW[1]; }
+  if (d) {
+    document.getElementById('sg_nick').value = d.nick || '';
+    for (const id of d.on || []) { const e = document.getElementById(id); if (e) { e.checked = true; if (e.onchange) e.onchange(); } }
+    if (d.g) sgGender(d.g);
+  }
+  card.onchange();
   document.getElementById('sg_go').onclick = async () => {
     const v = id => document.getElementById(id).value, err = document.getElementById('sg_err');
     err.textContent = '';
@@ -481,20 +515,23 @@ window.signupView = () => {
     try { const r = await rpc('rpg_join_request', {p_nick: v('sg_nick'), p_pw: v('sg_pw'), p_gender: SG, p_packs: packs, p_consents: readConsents('sg_', packs)});
       if (r.error) { err.textContent = r.error; return; }
       setWait(v('sg_nick').trim());
+      ls.set(SGD, null); SGPW = null;   // 신청했으니 적던 것은 지운다
       document.getElementById('app').innerHTML = `<div class="card"><h2 style="color:var(--ink);font-size:18px">신청했어요 🙌</h2>
         <div>만든 사람이 승인하면 <b>${esc(v('sg_nick'))}</b>(으)로 로그인할 수 있어요.</div>
         <div class="banner" style="margin-top:10px">⏳ 승인 기다리는 중이에요. 승인되면 알려 드릴게요.</div><button style="margin-top:14px" onclick="loginView()">로그인 화면으로</button></div>`;
     } catch(e) { err.textContent = errMsg(e); }
   };
 };
-window.sgGender = g => { SG = g; document.getElementById('sg_m').className = g === '남' ? '' : 'ghost'; document.getElementById('sg_f').className = g === '여' ? '' : 'ghost'; };
+window.sgGender = g => { SG = g; document.getElementById('sg_m').className = g === '남' ? '' : 'ghost'; document.getElementById('sg_f').className = g === '여' ? '' : 'ghost';
+  const a = document.getElementById('app'); if (a.onchange) a.onchange(); };   // 고른 캐릭터도 적던 것에 남긴다
 
 // 2) 기존 사용자 동의 창(이미 쓰던 사람: 쓸 기록 고르기 + 동의 → 만든 사람 승인 뒤 건물이 뜸)
 window.consentView = () => {
   const s = sheet(`<h3>시작 전에 여쭤볼게요</h3>
     <div class="small">기록을 서버에 저장해 두려고, 몇 가지만 여쭤볼게요. <a href="#" onclick="openPrivacy();return false">개인정보 처리방침 ›</a></div>
     <div style="margin-top:10px">${ck('cv_base', '[필수] 닉네임·비밀번호·성별로 내 계정과 캐릭터를 만들어요.')}
-      <div class="small" style="margin-left:28px"><b>닉네임·비밀번호·성별을 저장해요 · 탈퇴하면 30일 안에 지워요</b></div>
+      <div class="small" style="margin-left:28px"><b>닉네임·비밀번호·성별을 저장해요 · 탈퇴하면 30일 뒤 지워요</b></div>
+      ${BASE_DET('동의하지 않으면 라이프 RPG를 쓸 수 없어요')}
       ${ck('cv_age', '[필수] 만 14세 이상이에요.')}</div>
     <div style="margin-top:12px;font-weight:700">쓸 기록 고르기 <span class="small mute">(만든 사람이 열어 줘요)</span></div>
     ${pickHtml('cv_')}${PACKS.map(p => packBlock(p, 'cv_')).join('')}
@@ -502,6 +539,7 @@ window.consentView = () => {
     <div class="err" id="cv_err"></div><button id="cv_go">동의하고 시작하기</button>
     <button class="ghost" style="margin-top:8px" onclick="logout()">로그아웃</button>`);
   s.onclick = null;   // 바깥을 눌러도 안 닫힘(동의 전)
+  s.id = 'consentSheet';   // 뒤로 가기로도 안 닫힘(appBack)·위젯으로 들어와도 이 창이 먼저(openFrom)
   document.getElementById('cv_go').onclick = async () => {
     const err = document.getElementById('cv_err'), packs = pickedPacks('cv_'), c = readConsents('cv_', packs);
     err.textContent = '';
@@ -613,7 +651,7 @@ window.leaveAsk = () => {
 };
 window.leaveGo = async () => {
   try { const r = await rpc('rpg_leave', {p_token: token()}); if (r.error) return toast(r.error);
-    document.querySelectorAll('.sheet').forEach(x => x.remove()); setToken(''); ME = null; loginView(); toast('탈퇴했어요'); } catch(e) { toast(errMsg(e)); }
+    document.querySelectorAll('.sheet').forEach(x => x.remove()); setToken(''); ME = null; loginView(); try { window.Native && Native.wipeAll && Native.wipeAll(); } catch(e) {} ls.set('rpg_user', ''); toast('탈퇴했어요'); } catch(e) { toast(errMsg(e)); }
 };
 
 // 4) 주인(룡): 📮 신청 — 가입·확장팩 승인
@@ -750,12 +788,18 @@ function town(res, h){
   if (ts) ts.querySelector('.in').innerHTML = todayCard(h, res) + TAIL;
   if (PENDING) { const p = PENDING; PENDING = null; openFrom(p); }
 }
-// 위젯 버튼(🏠 👛 ⛪)으로 열렸을 때: 불러온 뒤 그 창을 연다
+// 위젯 버튼(🏠 👛 ⛪)·알림으로 열렸을 때: 불러온 뒤 그 창을 연다.
+// 2026-11-18: 앱(자바)은 바로 열지 않고 여기로 넘긴다. 로그인·동의 전이거나 안 연 기록이면 열지 않는다(동의 창이 먼저)
 let PENDING = null;
+const FROM = {home: ['건강', () => openHome()], wallet: ['재정', () => openWallet()], father: ['영성', () => openFather()], rel: ['관계', () => openRel()],
+  ledger: ['재정', () => openLedger()], spirit: ['영성', () => openSpiritApp('묵상')], work: ['업무', () => window.Native && Native.openTodo && Native.openTodo()]};
 window.openFrom = k => {
   if (!HOME) { PENDING = k; return; }
+  const f = FROM[k];
+  if (!ME) { PENDING = k; return; }   // 내 정보를 아직 못 불러옴: 버리지 않고 다음에 불러올 때 연다
+  if (!f || (ME.need_consent && !ME.owner) || !has(f[0])) return;
   tab('town');
-  ({home: openHome, wallet: openWallet, father: openFather, rel: openRel})[k]?.();
+  f[1]();
 };
 
 // ===== 오늘: 일정 + 할 일 (업무 기록 캘린더 위젯과 같은 나누기, 2026-11-12 룡 「기본 화면은 내 일정과 할 일」) =====

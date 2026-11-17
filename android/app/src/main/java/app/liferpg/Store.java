@@ -31,6 +31,33 @@ final class Store {
     String seenPacks() { return p.getString("seenPacks", "{}"); }
     void setSeenPacks(String json) { p.edit().putString("seenPacks", json == null ? "{}" : json).apply(); }
 
+    // 로그아웃·탈퇴(2026-11-18): 앞사람 것을 이 폰에서 모두 지운다. UI 줄에서 부른다(쿠키·웹 저장소).
+    // 지우는 것: RPG 열쇠·위젯 요약·지난 확인 기록, 위젯 할 일 목록(rpg-widget),
+    //   앱 안 업무 기록(todohub* = 로그인 쿠키·내 정보·위젯 목록·안 보낸 할 일)·관계 기록(rel = 열쇠·통화 확인 위치) 저장,
+    //   모든 쿠키(업무 hs= · 영성 pr=), 건강·재정 기록 화면의 웹 저장소(ggorotls-prog.github.io = 로그인 열쇠 life_token·fin_session).
+    // 남기는 것: 가입 승인 기다리는 닉네임(wait) = 로그인 전 상태. 묵상 알림 시각·잠금 등 이 폰 설정.
+    // 둘로 나눈다: wipePrefs는 부른 줄에서 바로(뒤따르는 새 로그인 열쇠를 지우지 않게), wipeWeb은 UI 줄에서.
+    // 아직 못 보낸 할 일(todohub-outbox)은 all일 때만 지운다 = 탈퇴했거나 다른 사람이 로그인했을 때.
+    //   같은 사람이 로그아웃·로그인 풀림 뒤 다시 들어오면 못 보낸 것이 그대로 보내진다(2026-11-18 프로그래머 점검).
+    static void wipePrefs(Context c, boolean all) {
+        Context ac = c.getApplicationContext();   // 이름 app은 쓰지 않는다(패키지 app.recordkit과 겹침)
+        get(ac).p.edit().putString("token", "").remove("summary").remove("seenPending").remove("seenPacks").apply();
+        for (String f : new String[]{"rpg-widget", "todohub", "todohub-notify", "todohub-widget", "todohub-cal", "rel"})
+            ac.getSharedPreferences(f, Context.MODE_PRIVATE).edit().clear().apply();
+        if (all) ac.getSharedPreferences("todohub-outbox", Context.MODE_PRIVATE).edit().clear().apply();
+    }
+    static void wipeWeb(Context c) {
+        Context ac = c.getApplicationContext();
+        try {
+            android.webkit.CookieManager cm = android.webkit.CookieManager.getInstance();
+            cm.removeAllCookies(null);
+            cm.flush();
+            android.webkit.WebStorage.getInstance().deleteOrigin("https://ggorotls-prog.github.io");
+        } catch (Exception ignored) {}
+        Widget.draw(ac);
+        try { app.recordkit.work.Work.refresh(ac); } catch (Exception ignored) {}   // 업무 기록 위젯도 비운 상태로 다시 그림
+    }
+
     // {lv, pct, today, on:[1/0/-1 × 6], names:[...], xp, packs:{home,wallet,father,work}}
     String summary() { return p.getString("summary", ""); }
     void setSummary(String json) { p.edit().putString("summary", json == null ? "" : json).apply(); }

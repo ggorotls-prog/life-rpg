@@ -93,16 +93,9 @@ public class MainActivity extends Activity {
 
     private void take(Intent i) {
         if (i == null || i.getStringExtra(EXTRA_OPEN) == null) return;
-        // 🏠 집 = 건강 기록 화면(HealthActivity)을 바로 연다(2026-11-15)
-        if ("home".equals(i.getStringExtra(EXTRA_OPEN))) { openHealth(); return; }
-        // 👛 장부 = 재정 기록 화면(WalletActivity)
-        if ("ledger".equals(i.getStringExtra(EXTRA_OPEN))) { openLedger(); return; }
-        // 📋 업무 기록 화면(요청·확인 = 업무 기록 앱 그 자체, 2026-11-16). 가상 폰 시험도 이 길로 연다
-        if ("work".equals(i.getStringExtra(EXTRA_OPEN))) { startActivity(WorkApp.screen(this, false)); return; }
-        // 👥 관계 기록 화면
-        if ("rel".equals(i.getStringExtra(EXTRA_OPEN))) { startActivity(RelApp.screen(this)); return; }
-        // ⛪ 영성 기록 화면(묵상 탭)
-        if ("spirit".equals(i.getStringExtra(EXTRA_OPEN))) { startActivity(SpiritApp.screen(this, "묵상")); return; }
+        // 2026-11-18: 바로 열지 않고 화면(openFrom)에 넘긴다. 화면이 로그인·동의·연 기록인지 본 뒤에 연다
+        // (home = 건강 기록 화면, wallet = 지갑 빠른 기록, ledger = 재정 기록 화면, work = 업무 기록 화면, rel = 관계 기록 화면,
+        //  spirit = 영성 기록 묵상 탭, father = 아빠 집. 가상 폰 시험도 이 길로 연다)
         openWhat = i.getStringExtra(EXTRA_OPEN);
     }
 
@@ -179,6 +172,10 @@ public class MainActivity extends Activity {
             Widget.draw(getApplicationContext());
         }
         @JavascriptInterface public String version() { return BuildConfig.VERSION_NAME; }
+        // 로그아웃·탈퇴(2026-11-18): 앞사람 것을 이 폰에서 모두 지운다(Store.wipeUser). 쿠키·웹 저장소는 화면 줄(UI)에서
+        @JavascriptInterface public void wipe() { Store.wipePrefs(getApplicationContext(), false); runOnUiThread(() -> Store.wipeWeb(getApplicationContext())); }
+        // 탈퇴했거나 다른 사람이 로그인했을 때: 아직 못 보낸 할 일까지 지운다
+        @JavascriptInterface public void wipeAll() { Store.wipePrefs(getApplicationContext(), true); runOnUiThread(() -> Store.wipeWeb(getApplicationContext())); }
 
         // 📱 켜야 할 것(2026-11-17): 알림이 켜져 있는지 · 이 앱 알림 설정 화면
         @JavascriptInterface public boolean notifyOn() { return Updater.notificationsOn(MainActivity.this); }
