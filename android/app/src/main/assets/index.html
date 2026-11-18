@@ -611,8 +611,16 @@ window.pwView = () => {
 const PERM_PACK = {업무:'📋 업무', 영성:'⛪ 영성', 건강:'🏠 건강', 재정:'👛 재정', 관계:'👥 관계'};
 const myPacks = () => Object.keys(PERM_PACK).filter(has);
 const perms = packs => { const N = window.Native; if (!N || !N.perms) return []; try { return JSON.parse(N.perms((packs || myPacks()).join(','))); } catch(e) { return []; } };
-window.gate = pack => { if (!perms([pack]).some(p => !p.on)) return false; setupView(pack); return true; };
-window.setupView = pack => {
+// gate: 그 기록을 처음 열 때, 그 기록에 필요한 것이 꺼져 있으면 「켜야 할 것」을 먼저 띄운다(다 켜면 그 기록이 바로 열린다).
+// 「안 켜고 쓰기」를 고르면 그 기록은 다시 묻지 않는다(「켜야 할 것」에는 꺼짐으로 남는다). 알림·배터리 같은 모두의 것으로는 막지 않는다.
+// 막지 않고 고르게 한 이유: 켤 수 없는 폰이 있고, 꼭 필요하지 않은 허락을 안 켰다고 못 쓰게 하면 안 되기 때문(2026-11-18 검수)
+window.gate = (pack, go) => {
+  if (ls.get('rpg_gate_skip_' + pack, false)) return false;
+  if (!perms([pack]).some(p => !p.on && p.pack === pack)) return false;
+  setupView(pack, go); return true; };
+window.gateOff = pack => { ls.set('rpg_gate_skip_' + pack, true); closeSheet(); const f = window._gateGo; window._gateGo = null; if (f) f(); };
+window.setupView = (pack, go) => {
+  window._gateGo = go || null;
   ls.set('rpg_setup_seen', true);
   if (!PERM_PACK[pack]) pack = '';
   const N = window.Native || {};
@@ -627,13 +635,15 @@ window.setupView = pack => {
     lock = row('🏘 잠금화면 앞에 마을 <span class="small mute">고르는 것</span>', lf && !ov ? '「다른 앱 위에 표시」를 허용해야 떠요' : '화면을 켜면 잠금 풀기 전에 마을이 먼저 보여요. 누르면 잠금을 풀어요',
       (lf && !ov ? btn('Native.openOverlay()', '허용') + ' ' : '') + btn(`Native.setLockFront(${!lf});closeSheet();setupView()`, lf ? '끄기' : '켜기')); }
   const head = !N.perms ? '알림·캘린더·배터리 같은 것은 앱에서만 켤 수 있어요'
-    : pack ? (miss.length ? `${PERM_PACK[pack]} 기록을 쓰려면 아래를 다 켜야 해요.` : `${PERM_PACK[pack]} 기록에 필요한 것이 다 켜져 있어요.`)
-    : miss.length ? '아래를 다 켜야 기록을 쓸 수 있어요. 한 번만 하면 돼요.' : '다 켜져 있어요.';
+    : pack ? (miss.length ? `${PERM_PACK[pack]} 기록이 제대로 돌려면 아래를 켜 주세요.` : `${PERM_PACK[pack]} 기록에 필요한 것이 다 켜져 있어요.`)
+    : miss.length ? '아래를 켜야 기록이 제대로 돌아요. 한 번만 하면 돼요.' : '다 켜져 있어요.';
   const s = sheet(`<h3>📱 켜야 할 것</h3><div class="small mute" style="margin-bottom:6px">${head}</div>
     ${miss.length ? `<button style="margin:6px 0 10px" onclick="Native.permsGo('${miss.map(p => p.id).join(',')}')">한 번에 켜기 (${miss.length}개)</button>` : ''}
     ${rows}${lock}
     ${pack ? '' : row('🧩 위젯 놓기', '홈 화면 빈 곳을 길게 누름 → 「위젯」 → 「라이프 RPG」 → 끌어다 놓기', '')}
-    <button class="${miss.length ? 'ghost' : ''}" style="margin-top:14px" onclick="closeSheet();load()">${miss.length ? '나중에' : '다 했어요'}</button>`);
+    ${pack && go && miss.some(p => p.pack === pack)
+      ? `<button class="ghost" style="margin-top:14px" onclick="gateOff('${pack}')">안 켜고 쓰기</button><div class="small mute" style="margin-top:6px">안 켜도 기록은 쓸 수 있어요. 위에 적힌 기능만 안 돼요. 나중에 ☰ → 「켜야 할 것」에서 켤 수 있어요.</div>`
+      : `<button class="${miss.length ? 'ghost' : ''}" style="margin-top:14px" onclick="closeSheet();load()">${miss.length ? '나중에' : '다 했어요'}</button>`}`);
   s.id = 'setupSheet';   // 설정 화면에서 돌아오면 다시 그린다(onNative)
   s.dataset.pack = pack;
 };
@@ -642,8 +652,8 @@ window.openMenu = () => {
   const N = window.Native || {};
   const it = (ic, nm, f) => `<div class="row" style="padding:13px 0;border-bottom:1px solid var(--line);font-size:16px;cursor:pointer" onclick="closeSheet();${f}">${ic}&nbsp; ${nm}</div>`;
   sheet(`<h3>☰ 메뉴</h3>`
-    + (has('업무') && N.openTodo ? it('📋', '업무 기록', "gate('업무')||Native.openTodo()") : '')
-    + (has('영성') && N.openSpirit ? it('⛪', '영성 기록', "gate('영성')||Native.openSpirit('묵상')") : '')
+    + (has('업무') && N.openTodo ? it('📋', '업무 기록', "gate('업무',()=>Native.openTodo())||Native.openTodo()") : '')
+    + (has('영성') && N.openSpirit ? it('⛪', '영성 기록', "gate('영성',()=>Native.openSpirit('묵상'))||Native.openSpirit('묵상')") : '')
     + (has('건강') ? it('🏠', '건강 기록', 'openHome()') : '')
     + (has('재정') ? it('👛', '재정 기록 (장부)', 'openLedger()') : '')
     + (has('관계') && N.openRel ? it('👥', '관계 기록', 'openRel()') : '')
@@ -771,10 +781,10 @@ function evLine(e){
   const now = Date.now(), t = e.allDay ? '하루 종일' : hm(e.begin) + '–' + hm(e.end);
   return `<div class="evl${!e.allDay && e.begin <= now ? ' now' : ''}" onclick="Native.openEvent('${e.id}','${e.begin}','${e.end}')"><span class="tt">${t}</span><span class="nm">${esc(e.title || '(제목 없음)')}</span></div>`;
 }
-window.openToday = () => { if (has('업무') && gate('업무')) return; const s = sheet(todayCard(HOME, RES) + TAIL); s.id = 'todaySheet'; };
+window.openToday = () => { if (has('업무') && gate('업무', openToday)) return; const s = sheet(todayCard(HOME, RES) + TAIL); s.id = 'todaySheet'; };
 window.soon = w => toast(w + '는 다음 단계에 붙여요');
 // 👥 이웃 = 관계 기록 그 자체(2026-11-16, 원본 한 벌 relkit): 통화 기록·사람·메모. 앱이 아니면(브라우저) 안내만
-window.openRel = () => { if (gate('관계')) return; const N = window.Native || {}; if (N.openRel) N.openRel(); else toast('관계 기록은 앱에서 열려요'); };
+window.openRel = () => { if (gate('관계', openRel)) return; const N = window.Native || {}; if (N.openRel) N.openRel(); else toast('관계 기록은 앱에서 열려요'); };
 function town(res, h){
   const cl = Math.floor(res.charShown), cp = res.charShown - cl;
   const got = a => res.areas[a].todayItems ? `<span class="got">${res.areas[a].todayXp ? '+'+res.areas[a].todayXp : '✓'}</span>` : '';
@@ -913,7 +923,7 @@ async function save(fn, args, okMsg){
 // 🏠 집 = 건강 기록 화면 그 자체(2026-11-15 룡 「기록 앱은 동일, RPG는 비추는 창」): 앱 안 HealthActivity가 건강 기록 사이트를 띄운다.
 // 잘게요 → 폰 잠금까지 건강 기록 앱과 똑같다. 아래 창은 앱 다리가 없을 때(브라우저)만 쓴다. 하루 경계는 새벽 4시(건강 기록과 같음)
 window.openHome = () => {
-  if (gate('건강')) return;
+  if (gate('건강', openHome)) return;
   if (window.Native && Native.openHealth) { Native.openHealth(); return; }
   const h = HOME.health;
   if (!h) return toast('건강 기록 계정이 이어져 있지 않아요. 관리자에게 말해 주세요');
@@ -935,13 +945,13 @@ window.openHome = () => {
 // 👛 지갑 = 재정 기록(오늘 날짜로 한 줄). 자주 쓴 항목이 먼저
 // 재정 기록 앱이 있으면 그 앱의 빠른 기록 창(재정 위젯과 같은 창)을 연다. 돌아오면 다시 불러와 +EXP. 없을 때만 아래 창
 window.openWallet = () => {
-  if (gate('재정')) return;
+  if (gate('재정', openWallet)) return;
   if (window.Native && Native.openWallet && Native.openWallet()) return;
   openWalletHere();
 };
 // 📒 장부 전체 = 재정 기록 화면 그 자체(2026-11-15 2단계: 재정 기록 앱 없이 RPG만으로 같게). 앱 다리가 없으면(브라우저) 재정 기록 사이트로
 window.openLedger = () => {
-  if (gate('재정')) return;
+  if (gate('재정', openLedger)) return;
   if (window.Native && Native.openLedger) { Native.openLedger(); return; }
   window.open('https://ggorotls-prog.github.io/faith-budget/', '_blank');
 };
@@ -1002,7 +1012,7 @@ function openSpiritApp(tab){
   else open('https://personal-record-alpha.vercel.app/?tab=' + encodeURIComponent(tab));
 }
 window.openFather = async () => {
-  if (gate('영성')) return;
+  if (gate('영성', openFather)) return;
   const s = sheet(`<h3>⛪ 아빠 집</h3><div class="mute small">불러오는 중…</div>`);
   try { await spiritDay(); } catch(e) { s.querySelector('.in').innerHTML = '<h3>⛪ 아빠 집</h3><div>'+esc(errMsg(e))+'</div>'; return; }
   const n = k => spOf(k).length;
@@ -1252,9 +1262,11 @@ function openDiary(){
 window.onNative = ev => {
   // 잠금화면 위에 뜰 때: 열려 있던 창을 다 닫고 마을로(잠금을 안 푼 사람에게 적던 글·보고서가 보이지 않게)
   if (ev === 'lock') { document.querySelectorAll('.sheet,.ov').forEach(x => x.remove()); try { if (CUR !== 'town' && document.getElementById('nav').style.display !== 'none') tab('town'); } catch (e) {} return; }
-  if (ev === 'resume') { load(); const ss = document.getElementById('setupSheet'); if (ss) setupView(ss.dataset.pack); return; }
+  if (ev === 'resume') { load(); const ss = document.getElementById('setupSheet'); if (ss) setupView(ss.dataset.pack, window._gateGo); return; }
   // 한 번에 켜기가 끝남: 다시 그리고, 다 켜졌으면 알린다
-  if (ev === 'perms') { const ss = document.getElementById('setupSheet'); const pk = ss ? ss.dataset.pack : ''; if (ss) setupView(pk); if (!perms(pk ? [pk] : null).some(p => !p.on)) toast('다 켰어요'); } };
+  if (ev === 'perms') { const ss = document.getElementById('setupSheet'); const pk = ss ? ss.dataset.pack : '', go = window._gateGo;
+    if (pk && go && !perms([pk]).some(p => !p.on && p.pack === pk)) { closeSheet(); window._gateGo = null; go(); return; }   // 그 기록 것이 다 켜졌으면 바로 연다
+    if (ss) setupView(pk, go); if (!perms(pk ? [pk] : null).some(p => !p.on)) toast('다 켰어요'); } };
 let y0 = null; // 아래로 당기면 새로고침
 addEventListener('touchstart', e => { y0 = scrollY === 0 ? e.touches[0].clientY : null; }, {passive:true});
 addEventListener('touchend', e => { if (y0 !== null && e.changedTouches[0].clientY - y0 > 90) { toast('새로 불러와요'); load(); } y0 = null; });

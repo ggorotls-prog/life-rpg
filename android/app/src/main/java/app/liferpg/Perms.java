@@ -43,10 +43,17 @@ final class Perms {
         return null;
     }
 
+    // 그 기록의 단독 앱이 같이 깔려 있나. 깔려 있으면 알림 읽기·통화 모으기·취침 잠금은 그 앱이 맡고 이 앱은 쉰다(원본 모듈 규칙)
+    private static boolean has(Context c, String pkg) {
+        try { c.getPackageManager().getPackageInfo(pkg, 0); return true; } catch (Exception e) { return false; }
+    }
+
     static boolean on(Context c, String id) {
         try {
             Item it = find(id);
             if (it == null) return true;
+            if ("관계".equals(it.pack) && has(c, "app.relrecord")) return true;
+            if ("sleepLock".equals(id) && has(c, "app.liferoom")) return true;
             if (it.perm != null) return c.checkSelfPermission(it.perm) == PackageManager.PERMISSION_GRANTED;
             String pkg = c.getPackageName();
             switch (id) {
@@ -54,7 +61,7 @@ final class Perms {
                 case "battery": { PowerManager pm = c.getSystemService(PowerManager.class); return pm == null || pm.isIgnoringBatteryOptimizations(pkg); }
                 case "overlay": return Settings.canDrawOverlays(c);
                 case "restricted": return restrictedOk(c);
-                case "finNotice": { String s = Settings.Secure.getString(c.getContentResolver(), "enabled_notification_listeners"); return s != null && s.contains(pkg + "/app.recordkit.fin.FinNotice"); }
+                case "finNotice": { String s = Settings.Secure.getString(c.getContentResolver(), "enabled_notification_listeners"); return s != null && s.contains("/app.recordkit.fin.FinNotice"); }   // 재정 기록 단독 앱에서 켠 것도 켜진 것
                 case "sleepLock": { String s = Settings.Secure.getString(c.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES); return s != null && s.contains(pkg + "/") && s.contains("LockService"); }
                 default: return true;
             }

@@ -30,6 +30,7 @@ public class MainActivity extends Activity {
     // 📱 한 번에 켜기(Perms): 아직 열어 볼 것들 · 지금 설정 화면에 가 있는 것
     private final java.util.ArrayList<String> permQueue = new java.util.ArrayList<>();
     private String permWaiting;
+    private boolean permLeft;   // 그 설정 화면으로 정말 나갔다(onPause를 지났다). 묻는 창이 닫히며 오는 onResume과 가르려고
     private android.app.AlertDialog dialog;   // 떠 있는 「새 버전」 창(잠금 위로 올라갈 때 닫는다)
     private final android.content.BroadcastReceiver unlocked = new android.content.BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) { exitLock(); }
@@ -215,8 +216,9 @@ public class MainActivity extends Activity {
         visible = true;
         if (loaded) js("window.onNative && onNative('resume')");
         // 한 번에 켜기: 설정 화면에 갔다 왔으면 다음 것을 연다(새 버전 창 같은 것은 다 끝난 뒤에)
-        if (permWaiting != null) {
+        if (permWaiting != null && permLeft) {
             permWaiting = null;
+            permLeft = false;
             if (web != null) web.postDelayed(this::permStep, 400);
             return;
         }
@@ -247,6 +249,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onPause() {
+        if (permWaiting != null) permLeft = true;
         visible = false;
         super.onPause();
     }
@@ -264,7 +267,14 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int code, String[] perms, int[] res) {
         super.onRequestPermissionsResult(code, perms, res);
         js("window.onNative && onNative('resume')");
-        if (code == 77) { permStep(); return; }
+        if (code == 77) {
+            // 두 번 거절해 묻는 창이 더는 안 뜨는 허락이 있으면 앱 정보 → 권한을 한 번 연다(갔다 오면 다음 것으로)
+            boolean blocked = false;
+            for (int i = 0; i < perms.length && i < res.length; i++)
+                if (res[i] != android.content.pm.PackageManager.PERMISSION_GRANTED && !shouldShowRequestPermissionRationale(perms[i])) blocked = true;
+            if (blocked) openForPerm(""); else permStep();
+            return;
+        }
         // 하나만 켜기(78): 묻는 창이 더는 안 뜨는 허락(두 번 거절)이면 앱 정보 → 권한으로 보낸다
         if (code == 78 && perms.length > 0 && res.length > 0 && res[0] != android.content.pm.PackageManager.PERMISSION_GRANTED && !shouldShowRequestPermissionRationale(perms[0])) {
             android.widget.Toast.makeText(this, Perms.hint(""), android.widget.Toast.LENGTH_LONG).show();
@@ -278,8 +288,37 @@ public class MainActivity extends Activity {
     private void permsGo(String csv) {
         permQueue.clear();
         permWaiting = null;
-        for (String id : (csv == null ? "" : csv).split(",")) if (Perms.find(id.trim()) != null) permQueue.add(id.trim());
+        permLeft = false;
+        boolean restricted = false;
+        for (String id : (csv == null ? "" : csv).split(",")) {
+            id = id.trim();
+            if ("restricted".equals(id)) { restricted = true; continue; }
+            if (Perms.find(id) != null) permQueue.add(id);
+        }
+        // 「제한된 설정 허용」은 알림 읽기·접근성 스위치를 한 번 눌러 본 뒤에야 앱 정보 ⋮에 생긴다.
+        // 그래서 순서 = 그 화면(눌러 보기) → 앱 정보(허용) → 그 화면 다시(켜기). 첫 화면에서 켜졌으면 뒤의 둘은 저절로 빠진다
+        if (restricted) {
+            for (String id : new String[]{"finNotice", "sleepLock"}) {
+                int at = permQueue.indexOf(id);
+                if (at < 0) continue;
+                permQueue.add(at + 1, "restricted");
+                permQueue.add(at + 2, id);
+                break;
+            }
+        }
         permStep();
+    }
+
+    // 설정 화면 하나를 열고, 갔다 오면 다음 것으로 넘어가게 표시한다. 그 화면이 없는 폰이면 앱 정보로
+    private void openForPerm(String id) {
+        permWaiting = id;
+        permLeft = false;
+        android.widget.Toast.makeText(this, Perms.hint(id), android.widget.Toast.LENGTH_LONG).show();
+        try { startActivity(Perms.intent(this, id)); }
+        catch (Exception e) {
+            try { startActivity(Perms.intent(this, "")); }
+            catch (Exception e2) { permWaiting = null; permStep(); }
+        }
     }
 
     private void permStep() {
@@ -293,12 +332,7 @@ public class MainActivity extends Activity {
             requestPermissions(ask.toArray(new String[0]), 77);
             return;
         }
-        String id = permQueue.remove(0);
-        try {
-            android.widget.Toast.makeText(this, Perms.hint(id), android.widget.Toast.LENGTH_LONG).show();
-            permWaiting = id;
-            startActivity(Perms.intent(this, id));
-        } catch (Exception e) { permWaiting = null; permStep(); }
+        openForPerm(permQueue.remove(0));
     }
 
     private void permOpen(String id) {
