@@ -43,6 +43,9 @@ public final class WorkApp {
     public static class Record extends app.recordkit.work.RecordService {}
     public static class RecordAlert extends app.recordkit.work.RecordReceiver {}
     public static class RecordUpload extends app.recordkit.work.RecordUploadJob {}
+    // 녹음할 미팅 알림(2026-11-18 룡)
+    public static class MeetAlert extends app.recordkit.work.MeetReceiver {}
+    public static class Meet extends app.recordkit.work.MeetActivity {}
     /** 사이트가 보낸 바로 오는 알림 */
     public static class Push extends app.recordkit.work.PushService {}
 

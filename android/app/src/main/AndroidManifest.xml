@@ -220,6 +220,14 @@
         <service android:name=".WorkApp$Sync" android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
         <receiver android:name=".WorkApp$RecordAlert" android:exported="false" />
+        <!-- 녹음할 미팅 알림(2026-11-18) -->
+        <receiver android:name=".WorkApp$MeetAlert" android:exported="false" />
+        <activity
+            android:name=".WorkApp$Meet"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/WorkQuickAdd" />
         <activity
             android:name=".WorkApp$RecordStart"
             android:exported="false"
