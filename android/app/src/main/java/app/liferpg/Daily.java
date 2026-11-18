@@ -139,6 +139,8 @@ public class Daily extends BroadcastReceiver {
             String s = new JSONObject(r.body).optString("status");
             if ("approved".equals(s)) { notice(ctx, 2142, "가입이 승인됐어요", nick + "(으)로 로그인해 주세요"); st.setWait(""); }
             else if ("rejected".equals(s)) { notice(ctx, 2142, "가입이 승인되지 않았어요", "궁금하면 초대한 사람(관리자)에게 물어봐 주세요"); st.setWait(""); }
+            // 거절하면 신청 줄을 바로 지워서 'none'이 온다(2026-11-18 룡)
+            else if ("none".equals(s)) { notice(ctx, 2142, "가입 신청이 승인되지 않았어요", "승인되지 않았거나 지워졌어요. 궁금하면 초대한 사람(관리자)에게 물어봐 주세요"); st.setWait(""); }
         } catch (Exception ignored) {}
     }
 

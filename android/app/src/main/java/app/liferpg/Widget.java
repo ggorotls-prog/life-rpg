@@ -77,8 +77,7 @@ public class Widget extends AppWidgetProvider {
             // 버튼: 앱을 열고 그 창
             v.setOnClickPendingIntent(R.id.head, openApp(ctx, null, 70));
             v.setOnClickPendingIntent(R.id.bHome, openApp(ctx, "home", 71));
-            // 👛도 앱을 거쳐 연다(2026-11-18): 화면이 로그인·동의·연 기록인지 본 뒤 빠른 기록 창(walletIntent)을 연다
-            v.setOnClickPendingIntent(R.id.bWallet, openApp(ctx, "wallet", 72));
+            v.setOnClickPendingIntent(R.id.bWallet, PendingIntent.getActivity(ctx, 72, walletIntent(ctx), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
             v.setOnClickPendingIntent(R.id.bFather, openApp(ctx, "father", 73));
             // 업무 기록 줄: ＋ 할 일(업무 기록 할 일 적기 창) · 맡기기 · 요청받은 일 · 확인할 일(업무 기록 앱)
             todoBar(ctx, v);
