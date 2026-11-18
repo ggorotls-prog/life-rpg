@@ -376,7 +376,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void setLockFront(boolean v) { LockFront.set(getApplicationContext(), v); }
         // 늘 떠 있는 「잠금화면 앞에 마을 켜짐」 알림을 숨기는 곳(그 알림 칸만 끄면 기능은 그대로 돈다)
         @JavascriptInterface public void lockNote() {
-            android.widget.Toast.makeText(MainActivity.this, "이 알림 칸을 끄면 알림만 사라지고 기능은 그대로예요", android.widget.Toast.LENGTH_LONG).show();
+            runOnUiThread(() -> android.widget.Toast.makeText(MainActivity.this, "이 알림 칸을 끄면 알림만 사라지고 기능은 그대로예요", android.widget.Toast.LENGTH_LONG).show());
             open(new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName()).putExtra(Settings.EXTRA_CHANNEL_ID, "lock_front"));
         }
         @JavascriptInterface public boolean overlayOn() { return LockFront.allowed(MainActivity.this); }
