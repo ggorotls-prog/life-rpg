@@ -302,7 +302,7 @@ jobs:
             echo "📋 업무(로그인 전) → 마을에 머묾"
             # ⑨ ＋ 할 일 적기 작은 창(업무 기록 위젯 ＋와 같은 창)
             adb logcat -c
-            adb shell am start -W -n 'app.liferpg/.WorkApp$Quick'
+            adb shell am start -W -n 'app.liferpg/.WorkApp\$Quick'
             sleep 6
             adb logcat -d -b crash > crash9.txt || true
             if grep -q "FATAL EXCEPTION" crash9.txt; then cat crash9.txt; exit 1; fi
@@ -331,7 +331,7 @@ jobs:
             echo "⛪ 영성(로그인 전) → 마을에 머묾"
             # ⑬ SOC 적기 창(영성 기록 위젯·바로가기와 같은 창). 로그인 전이면 영성 기록 화면으로 넘어간다
             adb logcat -c
-            adb shell am start -W -n 'app.liferpg/.SpiritApp$Quick' --es kind SOC
+            adb shell am start -W -n 'app.liferpg/.SpiritApp\$Quick' --es kind SOC
             sleep 6
             adb logcat -d -b crash > crash11.txt || true
             if grep -q "FATAL EXCEPTION" crash11.txt; then cat crash11.txt; exit 1; fi
@@ -366,10 +366,10 @@ jobs:
             if grep -qx 0 rootid.txt; then echo "root 됨: 기록 화면을 직접 열어 봐요"; else echo "root가 안 돼 직접 열기 시험은 건너뛰어요"; fi
             if grep -qx 0 rootid.txt; then adb shell am force-stop app.liferpg; adb logcat -c; adb shell am start -W -n app.liferpg/.HealthActivity; sleep 15; adb logcat -d -b crash > crashD1.txt || true; if grep -q "FATAL EXCEPTION" crashD1.txt; then cat crashD1.txt; exit 1; fi; adb shell dumpsys activity activities | grep -E "topResumedActivity" | tee topD1.txt; grep -q "app.liferpg/.HealthActivity" topD1.txt || { echo "건강 기록 화면이 안 떴어요"; exit 1; }; echo "🏠 건강 기록 화면 뜸"; adb exec-out screencap -p > shot-home.png || true; fi
             if grep -qx 0 rootid.txt; then adb shell am force-stop app.liferpg; adb logcat -c; adb shell am start -W -n app.liferpg/.WalletActivity; sleep 15; adb logcat -d -b crash > crashD2.txt || true; if grep -q "FATAL EXCEPTION" crashD2.txt; then cat crashD2.txt; exit 1; fi; adb shell dumpsys activity activities | grep -E "topResumedActivity" | tee topD2.txt; grep -q "app.liferpg/.WalletActivity" topD2.txt || { echo "재정 장부 화면이 안 떴어요"; exit 1; }; echo "📒 재정 기록 화면 뜸"; adb exec-out screencap -p > shot-wallet.png || true; fi
-            if grep -qx 0 rootid.txt; then adb shell am force-stop app.liferpg; adb logcat -c; adb shell am start -W -n 'app.liferpg/.WorkApp$Screen'; sleep 15; adb logcat -d -b crash > crashD3.txt || true; if grep -q "FATAL EXCEPTION" crashD3.txt; then cat crashD3.txt; exit 1; fi; adb shell dumpsys activity activities | grep -E "topResumedActivity" | tee topD3.txt; grep -q 'WorkApp\$Screen' topD3.txt || { echo "업무 기록 화면이 안 떴어요"; exit 1; }; echo "📋 업무 기록 화면 뜸"; adb exec-out screencap -p > shot-work.png || true; fi
-            if grep -qx 0 rootid.txt; then adb shell am force-stop app.liferpg; adb logcat -c; adb shell am start -W -n 'app.liferpg/.SpiritApp$Screen'; sleep 15; adb logcat -d -b crash > crashD4.txt || true; if grep -q "FATAL EXCEPTION" crashD4.txt; then cat crashD4.txt; exit 1; fi; adb shell dumpsys activity activities | grep -E "topResumedActivity" | tee topD4.txt; grep -q 'SpiritApp\$Screen' topD4.txt || { echo "영성 기록 화면이 안 떴어요"; exit 1; }; echo "⛪ 영성 기록 화면 뜸"; adb exec-out screencap -p > shot-spirit.png || true; fi
+            if grep -qx 0 rootid.txt; then adb shell am force-stop app.liferpg; adb logcat -c; adb shell am start -W -n 'app.liferpg/.WorkApp\$Screen'; sleep 15; adb logcat -d -b crash > crashD3.txt || true; if grep -q "FATAL EXCEPTION" crashD3.txt; then cat crashD3.txt; exit 1; fi; adb shell dumpsys activity activities | grep -E "topResumedActivity" | tee topD3.txt; grep -q 'WorkApp\$Screen' topD3.txt || { echo "업무 기록 화면이 안 떴어요"; exit 1; }; echo "📋 업무 기록 화면 뜸"; adb exec-out screencap -p > shot-work.png || true; fi
+            if grep -qx 0 rootid.txt; then adb shell am force-stop app.liferpg; adb logcat -c; adb shell am start -W -n 'app.liferpg/.SpiritApp\$Screen'; sleep 15; adb logcat -d -b crash > crashD4.txt || true; if grep -q "FATAL EXCEPTION" crashD4.txt; then cat crashD4.txt; exit 1; fi; adb shell dumpsys activity activities | grep -E "topResumedActivity" | tee topD4.txt; grep -q 'SpiritApp\$Screen' topD4.txt || { echo "영성 기록 화면이 안 떴어요"; exit 1; }; echo "⛪ 영성 기록 화면 뜸"; adb exec-out screencap -p > shot-spirit.png || true; fi
             # 관계 기록 화면 글은 relkit 안 assets/rel/index.html: 못 찾으면 실패
-            if grep -qx 0 rootid.txt; then adb shell am force-stop app.liferpg; adb logcat -c; adb shell am start -W -n 'app.liferpg/.RelApp$Screen'; sleep 15; adb logcat -d -b crash > crashD5.txt || true; if grep -q "FATAL EXCEPTION" crashD5.txt; then cat crashD5.txt; exit 1; fi; adb shell dumpsys activity activities | grep -E "topResumedActivity" | tee topD5.txt; grep -q 'RelApp\$Screen' topD5.txt || { echo "관계 기록 화면이 안 떴어요"; exit 1; }; adb logcat -d | grep -E "ERR_FILE_NOT_FOUND" | head -3 | tee asset.txt || true; if grep -q "ERR_FILE_NOT_FOUND" asset.txt; then echo "관계 기록 화면 글을 못 찾았어요"; exit 1; fi; echo "👥 관계 기록 화면 뜸"; adb exec-out screencap -p > shot-rel.png || true; fi
+            if grep -qx 0 rootid.txt; then adb shell am force-stop app.liferpg; adb logcat -c; adb shell am start -W -n 'app.liferpg/.RelApp\$Screen'; sleep 15; adb logcat -d -b crash > crashD5.txt || true; if grep -q "FATAL EXCEPTION" crashD5.txt; then cat crashD5.txt; exit 1; fi; adb shell dumpsys activity activities | grep -E "topResumedActivity" | tee topD5.txt; grep -q 'RelApp\$Screen' topD5.txt || { echo "관계 기록 화면이 안 떴어요"; exit 1; }; adb logcat -d | grep -E "ERR_FILE_NOT_FOUND" | head -3 | tee asset.txt || true; if grep -q "ERR_FILE_NOT_FOUND" asset.txt; then echo "관계 기록 화면 글을 못 찾았어요"; exit 1; fi; echo "👥 관계 기록 화면 뜸"; adb exec-out screencap -p > shot-rel.png || true; fi
             adb unroot || true
             sleep 3
             adb wait-for-device
