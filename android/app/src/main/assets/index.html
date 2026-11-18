@@ -628,15 +628,15 @@ window.setupView = (pack, go) => {
   const on = '<span class="small" style="color:var(--ok)">켜짐</span>';
   const btn = (f, t) => `<button style="width:auto;padding:4px 10px" onclick="${f}">${t}</button>`;
   const row = (title, sub, right) => `<div class="row" style="justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)"><div style="flex:1"><div>${title}</div><div class="small mute">${sub}</div></div>${right}</div>`;
-  const rows = list.map(p => row(p.title + (PERM_PACK[p.pack] ? ` <span class="small mute">${PERM_PACK[p.pack]}</span>` : ''), p.why, p.on ? on : btn(`Native.permOpen('${p.id}')`, '켜기'))).join('');
+  const rows = list.map(p => row(p.title + ' <span class="small mute">[선택]</span>' + (PERM_PACK[p.pack] ? ` <span class="small mute">${PERM_PACK[p.pack]}</span>` : ''), p.why, p.on ? on : btn(`Native.permOpen('${p.id}')`, '켜기'))).join('');
   let lock = '';
   // 🏘 잠금화면 앞에 마을(2026-11-18 룡): 화면을 켜면 잠금 풀기 전에 마을이 먼저. 고르는 것이라 「한 번에 켜기」에는 안 넣는다
   if (!pack && N.lockFront) { const lf = N.lockFront(), ov = N.overlayOn();
     lock = row('🏘 잠금화면 앞에 마을 <span class="small mute">고르는 것</span>', lf && !ov ? '「다른 앱 위에 표시」를 허용해야 떠요' : '화면을 켜면 잠금 풀기 전에 마을이 먼저 보여요. 누르면 잠금을 풀어요',
       (lf && !ov ? btn('Native.openOverlay()', '허용') + ' ' : '') + btn(`Native.setLockFront(${!lf});closeSheet();setupView()`, lf ? '끄기' : '켜기')); }
   const head = !N.perms ? '알림·캘린더·배터리 같은 것은 앱에서만 켤 수 있어요'
-    : pack ? (miss.length ? `${PERM_PACK[pack]} 기록이 제대로 돌려면 아래를 켜 주세요.` : `${PERM_PACK[pack]} 기록에 필요한 것이 다 켜져 있어요.`)
-    : miss.length ? '아래를 켜야 기록이 제대로 돌아요. 한 번만 하면 돼요.' : '다 켜져 있어요.';
+    : pack ? (miss.length ? `${PERM_PACK[pack]} 기록이 제대로 돌려면 아래를 켜 주세요. 모두 선택이에요. 안 켜도 기록은 쓸 수 있고, 적힌 기능만 안 돼요.` : `${PERM_PACK[pack]} 기록에 필요한 것이 다 켜져 있어요.`)
+    : miss.length ? '아래를 켜야 기록이 제대로 돌아요. 모두 선택이에요. 안 켜도 기록은 쓸 수 있고, 적힌 기능만 안 돼요.' : '다 켜져 있어요.';
   const s = sheet(`<h3>📱 켜야 할 것</h3><div class="small mute" style="margin-bottom:6px">${head}</div>
     ${miss.length ? `<button style="margin:6px 0 10px" onclick="Native.permsGo('${miss.map(p => p.id).join(',')}')">한 번에 켜기 (${miss.length}개)</button>` : ''}
     ${rows}${lock}

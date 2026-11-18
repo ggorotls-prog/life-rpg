@@ -25,17 +25,18 @@ final class Perms {
         Item(String id, String pack, String title, String why, String perm) { this.id = id; this.pack = pack; this.title = title; this.why = why; this.perm = perm; }
     }
 
+    // 글 꼴(2026-11-18 법무 검토): 무엇을 읽거나 하는지 + 왜 + 「안 켜도 무엇은 쓸 수 있는지」. 모두 선택이다(안 켜도 그 기록은 열린다).
     static final Item[] ALL = {
-            new Item("notify", "", "🔔 알림", "승인·새 버전·「기록할까요?」를 알려 줘요", Build.VERSION.SDK_INT >= 33 ? "android.permission.POST_NOTIFICATIONS" : null),
-            new Item("battery", "", "🔋 배터리 아끼기에서 빼기", "앱을 안 열어도 15분마다 확인해요", null),
-            new Item("calendar", "업무", "📅 캘린더 보기", "마을과 「오늘」에 오늘 일정을 보여 줘요", Manifest.permission.READ_CALENDAR),
-            new Item("phone", "관계", "📞 통화가 끝났는지 알기", "통화가 끝나면 누구와 했는지 물어요", Manifest.permission.READ_PHONE_STATE),
-            new Item("calllog", "관계", "📞 통화 기록 읽기", "번호·시각·길이만 읽어요. 내용은 안 읽어요", Manifest.permission.READ_CALL_LOG),
-            new Item("contacts", "관계", "👤 연락처 읽기", "이름을 보여 주고 뺄 번호를 골라요", Manifest.permission.READ_CONTACTS),
-            new Item("overlay", "관계", "🪟 다른 앱 위에 표시", "통화가 끝나면 작은 창으로 물어요", null),
-            new Item("restricted", "*", "🔓 제한된 설정 허용", "받아서 깐 앱은 이것을 먼저 눌러야 아래 것이 켜져요 (앱 정보 → 오른쪽 위 ⋮)", null),
-            new Item("finNotice", "재정", "💳 은행·카드 알림 읽기", "입금·출금·결제 알림이 오면 「기록할까요?」를 물어요", null),
-            new Item("sleepLock", "건강", "🌙 취침 잠금", "「잘게요」 뒤에 폰을 잠가요 (접근성에서 켜요)", null),
+            new Item("notify", "", "🔔 알림", "앱이 알림을 띄워요(승인·새 버전·「기록할까요?」). 안 켜도 기록은 쓸 수 있어요", Build.VERSION.SDK_INT >= 33 ? "android.permission.POST_NOTIFICATIONS" : null),
+            new Item("battery", "", "🔋 배터리 아끼기에서 빼기", "앱을 안 열어도 15분마다 새 소식을 확인해요. 안 켜도 기록은 쓸 수 있어요", null),
+            new Item("calendar", "업무", "📅 캘린더 보기", "폰 캘린더의 오늘 일정(제목·시간)을 읽어 마을과 「오늘」에 보여 줘요. 안 켜도 할 일은 쓸 수 있어요", Manifest.permission.READ_CALENDAR),
+            new Item("phone", "관계", "📞 통화가 끝났는지 알기", "통화가 끝난 때를 알아 누구와 했는지 물어요. 안 켜도 사람·메모 기록은 쓸 수 있어요", Manifest.permission.READ_PHONE_STATE),
+            new Item("calllog", "관계", "📞 통화 기록 읽기", "번호·방향·시각·길이를 읽어요. 녹음·통화 내용은 안 읽어요. 안 켜도 사람·메모 기록은 쓸 수 있어요", Manifest.permission.READ_CALL_LOG),
+            new Item("contacts", "관계", "👤 연락처 읽기", "이름·번호를 읽어 이름을 보여 주고 뺄 번호를 골라요. 안 켜도 사람·메모 기록은 쓸 수 있어요", Manifest.permission.READ_CONTACTS),
+            new Item("overlay", "관계", "🪟 다른 앱 위에 표시", "통화가 끝나면 작은 창으로 물어요. 안 켜면 알림으로 물어요", null),
+            new Item("finNotice", "재정", "💳 은행·카드 알림 읽기", "은행·카드 알림에서 금액·종류·가게 이름만 읽어 「기록할까요?」를 물어요. 계좌번호·잔액은 저장하지 않아요. 안 켜도 손으로 장부를 쓸 수 있어요", null),
+            new Item("sleepLock", "건강", "🌙 취침 잠금", "「잘게요」 뒤에 폰을 잠가요(접근성에서 켜요). 안 켜도 기상·운동·식단 기록은 쓸 수 있어요", null),
+            new Item("restricted", "*", "🔓 제한된 설정 허용", "받아서 깐 앱은 이것을 눌러야 위의 알림 읽기·취침 잠금이 켜져요 (앱 정보 → 오른쪽 위 ⋮)", null),
     };
 
     static Item find(String id) {
