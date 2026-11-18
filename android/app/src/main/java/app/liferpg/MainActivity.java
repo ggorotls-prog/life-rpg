@@ -27,6 +27,9 @@ public class MainActivity extends Activity {
     private android.widget.FrameLayout root;
     private View lockCover;
     private boolean lockMode;
+    // 📱 한 번에 켜기(Perms): 아직 열어 볼 것들 · 지금 설정 화면에 가 있는 것
+    private final java.util.ArrayList<String> permQueue = new java.util.ArrayList<>();
+    private String permWaiting;
     private android.app.AlertDialog dialog;   // 떠 있는 「새 버전」 창(잠금 위로 올라갈 때 닫는다)
     private final android.content.BroadcastReceiver unlocked = new android.content.BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) { exitLock(); }
@@ -211,6 +214,12 @@ public class MainActivity extends Activity {
         super.onResume();
         visible = true;
         if (loaded) js("window.onNative && onNative('resume')");
+        // 한 번에 켜기: 설정 화면에 갔다 왔으면 다음 것을 연다(새 버전 창 같은 것은 다 끝난 뒤에)
+        if (permWaiting != null) {
+            permWaiting = null;
+            if (web != null) web.postDelayed(this::permStep, 400);
+            return;
+        }
         // 잠금화면 위에 떠 있는 동안에는 보기만: 업데이트·알림을 묻지 않는다. 잠금이 풀렸으면 syncLock이 판을 걷고 아래 확인을 부른다
         LockFront.start(this);
         boolean was = lockMode;
@@ -255,6 +264,52 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int code, String[] perms, int[] res) {
         super.onRequestPermissionsResult(code, perms, res);
         js("window.onNative && onNative('resume')");
+        if (code == 77) { permStep(); return; }
+        // 하나만 켜기(78): 묻는 창이 더는 안 뜨는 허락(두 번 거절)이면 앱 정보 → 권한으로 보낸다
+        if (code == 78 && perms.length > 0 && res.length > 0 && res[0] != android.content.pm.PackageManager.PERMISSION_GRANTED && !shouldShowRequestPermissionRationale(perms[0])) {
+            android.widget.Toast.makeText(this, Perms.hint(""), android.widget.Toast.LENGTH_LONG).show();
+            try { startActivity(Perms.intent(this, "")); } catch (Exception ignored) {}
+        }
+    }
+
+    // ── 📱 한 번에 켜기(2026-11-18 룡 「한 방에」) ──
+    // 꺼진 것을 차례로 연다: 묻는 창으로 받는 것은 한꺼번에, 설정 화면에서 켜는 것은 하나씩(갔다 오면 onResume이 다음 것을 연다).
+    // 한 번 열어 본 것은 켰든 안 켰든 줄에서 뺀다(같은 화면을 끝없이 다시 열지 않게). 안 켠 것은 「켜야 할 것」에 꺼짐으로 남는다.
+    private void permsGo(String csv) {
+        permQueue.clear();
+        permWaiting = null;
+        for (String id : (csv == null ? "" : csv).split(",")) if (Perms.find(id.trim()) != null) permQueue.add(id.trim());
+        permStep();
+    }
+
+    private void permStep() {
+        if (lockMode || isFinishing()) { permQueue.clear(); return; }
+        permQueue.removeIf(id -> Perms.on(this, id));
+        if (permQueue.isEmpty()) { js("window.onNative && onNative('perms')"); return; }
+        java.util.ArrayList<String> ask = new java.util.ArrayList<>();
+        for (String id : permQueue) { Perms.Item it = Perms.find(id); if (it != null && it.perm != null) ask.add(it.perm); }
+        if (!ask.isEmpty()) {
+            permQueue.removeIf(id -> { Perms.Item it = Perms.find(id); return it != null && it.perm != null; });
+            requestPermissions(ask.toArray(new String[0]), 77);
+            return;
+        }
+        String id = permQueue.remove(0);
+        try {
+            android.widget.Toast.makeText(this, Perms.hint(id), android.widget.Toast.LENGTH_LONG).show();
+            permWaiting = id;
+            startActivity(Perms.intent(this, id));
+        } catch (Exception e) { permWaiting = null; permStep(); }
+    }
+
+    private void permOpen(String id) {
+        Perms.Item it = Perms.find(id);
+        if (it == null) return;
+        permQueue.clear();
+        if (it.perm != null) { requestPermissions(new String[]{it.perm}, 78); return; }
+        try {
+            android.widget.Toast.makeText(this, Perms.hint(id), android.widget.Toast.LENGTH_LONG).show();
+            startActivity(Perms.intent(this, id));
+        } catch (Exception ignored) {}
     }
 
     private void js(String code) {
@@ -278,6 +333,10 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void openNotify() {
             open(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName()));
         }
+        // 📱 켜야 할 것 한 벌(Perms): 그 기록들에 필요한 것 목록 · 한 번에 켜기 · 하나만 켜기
+        @JavascriptInterface public String perms(String packs) { return Perms.json(MainActivity.this, packs); }
+        @JavascriptInterface public void permsGo(String ids) { runOnUiThread(() -> MainActivity.this.permsGo(ids)); }
+        @JavascriptInterface public void permOpen(String id) { runOnUiThread(() -> MainActivity.this.permOpen(id)); }
         // 🏘 잠금화면 앞에 마을(2026-11-18): 켜짐 · 켜고 끄기 · 「다른 앱 위에 표시」 허용됐나 · 그 설정 화면
         @JavascriptInterface public boolean lockFront() { return LockFront.on(MainActivity.this); }
         @JavascriptInterface public void setLockFront(boolean v) { LockFront.set(getApplicationContext(), v); }
