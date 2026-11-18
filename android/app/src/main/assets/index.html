@@ -275,11 +275,12 @@ function render(res, data){
   const badges = AREAS.filter(a => res.areas[a].ready).map(a => { const r = res.areas[a];
     const pct = r.next ? Math.round((r.total - r.prevB)/(r.next - r.prevB)*100) : 100;
     return `<div class="stat"><span>${a}</span><div class="bar"><i style="width:${pct}%;background:#c9a227"></i></div><span class="n">${r.total}${r.next ? '/'+r.next : ''}일</span></div>`; }).join('');
+  const myName = (data.name||'').replace(/#\d+$/,'');   // 안에서 붙은 번호(닉네임#2)는 내 화면에서는 떼고 보인다(2026-11-18)
   document.getElementById('app').innerHTML = `
     ${banner}
     <div class="card">
-      <div class="row"><div class="avatar">${esc((data.name||'나').slice(0,1))}</div>
-        <div style="flex:1"><div class="row"><span class="lv">Lv ${cl}</span><span class="mute small">${esc(data.name||'')}</span></div>
+      <div class="row"><div class="avatar">${esc((myName||'나').slice(0,1))}</div>
+        <div style="flex:1"><div class="row"><span class="lv">Lv ${cl}</span><span class="mute small">${esc(myName)}</span></div>
         <div class="row" style="margin-top:6px"><div class="bar"><i style="width:${Math.round(cp*100)}%"></i></div><span class="small mute">${Math.round(cp*100)}%</span></div></div></div>
       <div class="small mute" style="margin-top:10px">고르게 기를수록 빨리 올라요${res.minArea ? ` · 지금 가장 작은 칸: <b>${res.minArea}</b>` : ''}</div>
     </div>
@@ -435,17 +436,20 @@ const PACKS = [
   {k:'영성', icon:'⛪', b:'아빠 집', main:'묵상·감사·기도·일기를 저장해서 내 캐릭터를 키워요.',
    sens:'묵상·기도·일기처럼 <b>신앙에 관한 기록</b>을 저장하는 데 따로 동의해요.',
    what:'묵상·감사·칭찬·기도·일기에 적은 글, 통독한 장'},
-  {k:'업무', icon:'🏢', b:'사무실', main:'할 일을 저장해서 내 캐릭터를 키워요.', what:'할 일 제목·메모·날짜'},
+  {k:'업무', icon:'🏢', b:'사무실', main:'할 일을 저장해서 내 캐릭터를 키워요.', what:'할 일 제목·메모·날짜',
+   keep:'다른 사람과 주고받은 할 일과 대화는 상대방 기록이기도 해서, 내 이름을 「탈퇴한 사람」으로 바꿔 남겨요'},
 ];
 const ck = (id, label, cls='') => `<label class="cons ${cls}"><input type="checkbox" id="${id}"><span>${label}</span></label>`;
+const eul = s => { const c = s.charCodeAt(s.length - 1); return c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 ? '을' : '를'; };   // 받침 따라 을·를(날짜를·장을)
 const det = html => `<details class="small mute" style="margin:2px 0 10px 28px"><summary>자세히</summary>${html}</details>`;
 function packBlock(p, pre){
   return `<div class="pk" id="${pre}box_${p.k}" style="display:none;margin:4px 0 12px;padding:10px;border:1px solid var(--line);border-radius:12px">
     <div style="font-weight:700;margin-bottom:4px">${p.icon} ${p.b} (${p.k})</div>
     ${ck(pre+'c_'+p.k, `[${p.b}을 열려면 필요] ${p.main}`)}
     ${p.sens ? ck(pre+'c_'+p.k+'_민감', `[${p.b}을 열려면 필요] ${p.sens}`) : ''}
-    <div class="small" style="margin-left:28px"><b>${p.what}을 서버에 저장해요 · ${p.b}을 닫거나 탈퇴하면 30일 뒤 지워요</b></div>
-    ${det(`${p.more ? '· '+p.more+'<br>' : ''}· 쓰는 곳: 내 기록을 저장하고 다시 보여 주기, 레벨 계산<br>· 동의하지 않아도 돼요. 그러면 ${p.b}만 열리지 않아요`)}
+    <div class="small" style="margin-left:28px">동의하지 않을 수 있어요. 동의하지 않으면 ${p.b}(${p.k} 기록)은 쓸 수 없고, 나머지는 그대로 써요</div>
+    <div class="small" style="margin-left:28px"><b>${p.what}${eul(p.what)} 서버에 저장해요 · ${p.b}을 닫거나 탈퇴하면 30일 뒤 지워요${p.keep ? ' · '+p.keep : ''}</b></div>
+    ${det(`${p.more ? '· '+p.more+'<br>' : ''}· 쓰는 곳: 내 기록을 저장하고 다시 보여 주기, 레벨 계산`)}
   </div>`;
 }
 const REPORT_HTML = pre => `<div style="margin-top:14px;font-weight:700">성장 보고서 <span class="small mute">[선택] 안 해도 앱은 그대로 써요</span></div>
@@ -453,7 +457,7 @@ const REPORT_HTML = pre => `<div style="margin-top:14px;font-weight:700">성장 
   ${ck(pre+'r_ai', '[선택] 보고서를 만들 때 내 기록을 <b>미국의 AI 회사 Anthropic으로 보내요</b>.')}
   ${ck(pre+'r_sens', '[선택] <b>건강·신앙 기록</b>도 보고서에 넣어요(따로 동의).')}
   ${det(`· 만든 사람: 김귀룡 · ryong.office@gmail.com<br>· 읽는 것: 내가 연 확장팩의 기록(건강·신앙은 셋째 칸에 체크했을 때만)<br>· 쓰는 곳: 성장 보고서(요약·분석·조언)<br>
-    · Anthropic: 보고서 글을 만드는 일에 써요 · 보고서를 만들 때마다 인터넷으로 보내요 · 30일 안에 지워요 · privacy@anthropic.com<br>
+    · Anthropic: 보고서 글을 만드는 일에 써요 · 보고서를 만들 때마다 인터넷으로 보내요 · 30일 안에 지워요 · 다만 Anthropic 이용 규칙을 어긴 것으로 걸린 내용은 최대 2년 보관될 수 있어요 · privacy@anthropic.com<br>
     · 안 하면: 보고서를 만드는 데 내 기록을 쓰지 않아요 · ⚙ 설정에서 언제든 끌 수 있어요`)}`;
 function readConsents(pre, packs){
   const on = id => { const e = document.getElementById(id); return !!(e && e.checked); };
@@ -650,7 +654,7 @@ window.packClose = k => {
   };
 };
 window.leaveAsk = () => {
-  sheet(`<h3>탈퇴하기</h3><div>탈퇴하면 바로 로그아웃되고, 다시 로그인할 수 없어요.${ME && ME.rpg_only ? ' <b>30일 뒤 계정과 모든 기록을 지워요.</b>' : ' 라이프 RPG 쪽 정보만 30일 뒤 지우고, 원래 쓰던 기록 앱의 계정·기록은 그대로예요.'}</div>
+  sheet(`<h3>탈퇴하기</h3><div>탈퇴하면 바로 로그아웃되고, 다시 로그인할 수 없어요.${ME && ME.rpg_only ? ' <b>30일 뒤 계정과 내 기록을 지워요.</b> 다른 사람과 주고받은 할 일과 대화는 내 이름을 「탈퇴한 사람」으로 바꿔 상대방에게 남아요. 내가 쓴 글도 지우려면 ryong.office@gmail.com로 알려 주세요.' : ' 라이프 RPG 쪽 정보만 30일 뒤 지우고, 원래 쓰던 기록 앱의 계정·기록은 그대로예요.'}</div>
     <button style="margin-top:14px;background:#b33" onclick="leaveGo()">탈퇴</button><button class="ghost" style="margin-top:8px" onclick="openSettings()">← 설정</button>`);
 };
 window.leaveGo = async () => {

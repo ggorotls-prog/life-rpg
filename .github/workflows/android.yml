@@ -210,7 +210,7 @@ jobs:
             adb shell cmd connectivity airplane-mode disable || true; adb shell svc wifi enable; adb shell svc data enable
             sleep 8
             # ---- 🏠 집 = 건강 기록 화면 + 취침 잠금(2026-11-15). 건강 기록 앱 시험과 같은 것 ----
-            # ① 위젯 🏠 버튼과 같은 길(open=home)로 열면 건강 기록 화면(HealthActivity)이 뜬다
+            # ① 위젯 🏠 버튼과 같은 길(open=home): 2026-11-18부터 로그인·동의·연 기록일 때만 연다(openFrom). 가상 폰은 로그인이 없으니 마을에 머문다
             adb logcat -c
             adb shell am force-stop app.liferpg
             adb shell am start -W -n app.liferpg/.MainActivity --es open home
@@ -219,9 +219,8 @@ jobs:
             echo "===== crash (집) ====="; cat crash4.txt
             if grep -q "FATAL EXCEPTION" crash4.txt; then exit 1; fi
             adb shell dumpsys activity activities | grep -E "topResumedActivity|mResumedActivity" | tee top1.txt
-            grep -q "app.liferpg/.HealthActivity" top1.txt || { echo "건강 기록 화면이 안 떴어요"; exit 1; }
-            echo "🏠 집 → 건강 기록 화면 뜸"
-            adb exec-out screencap -p > shot-home.png || true
+            if grep -q "app.liferpg/.HealthActivity" top1.txt; then echo "로그인 전인데 건강 기록 화면이 열렸어요"; exit 1; fi
+            echo "🏠 집(로그인 전) → 마을에 머묾"
             adb shell dumpsys alarm | grep -c "app.liferpg" || true
             # ② 취침 잠금 서비스가 폰과 이어지는지(건강 기록 앱 시험과 같음)
             adb shell settings put secure enabled_accessibility_services app.liferpg/app.liferpg.LockService
@@ -276,23 +275,22 @@ jobs:
             echo "👛 지갑 → 빠른 기록 창 뜸"
             adb exec-out screencap -p > shot-wallet-quick.png || true
             adb shell input keyevent KEYCODE_BACK
-            # ⑥ 마을 「📒 재정 장부 전체」와 같은 길(open=ledger): 재정 기록 화면 그 자체
+            # ⑥ 마을 「📒 재정 장부 전체」와 같은 길(open=ledger): 로그인 전이라 마을에 머문다(화면이 뜨는지는 아래 「직접 열기」)
             adb shell am force-stop app.liferpg
             adb shell am start -W -n app.liferpg/.MainActivity --es open ledger
             sleep 15
             adb logcat -d -b crash > crash7.txt || true
             if grep -q "FATAL EXCEPTION" crash7.txt; then cat crash7.txt; exit 1; fi
             adb shell dumpsys activity activities | grep -E "topResumedActivity" | tee top5.txt
-            grep -q "app.liferpg/.WalletActivity" top5.txt || { echo "재정 장부 화면이 안 떴어요"; exit 1; }
-            echo "📒 장부 → 재정 기록 화면 뜸"
-            adb exec-out screencap -p > shot-wallet.png || true
+            if grep -q "app.liferpg/.WalletActivity" top5.txt; then echo "로그인 전인데 재정 장부 화면이 열렸어요"; exit 1; fi
+            echo "📒 장부(로그인 전) → 마을에 머묾"
             # ⑦ 「+ 수입 | − 지출」 위젯이 이 앱에 들어 있는지
             adb shell dumpsys appwidget | grep -E "app.liferpg/.WalletWidget" | head -3 || true
             adb shell cmd package query-receivers --components -a android.appwidget.action.APPWIDGET_UPDATE | grep -E "liferpg" | tee rcv.txt || true
             grep -q "WalletWidget" rcv.txt || { echo "재정 위젯이 안 들어 있어요"; exit 1; }
             echo "재정 위젯 들어 있음"
             # ---- 📋 업무 기록(2026-11-16): 업무 기록 앱 시험과 같은 것 ----
-            # ⑧ 요청·확인과 같은 길(open=work): 업무 기록 화면 그 자체
+            # ⑧ 요청·확인과 같은 길(open=work): 로그인 전이라 마을에 머문다
             adb shell am force-stop app.liferpg
             adb logcat -c
             adb shell am start -W -n app.liferpg/.MainActivity --es open work
@@ -300,9 +298,8 @@ jobs:
             adb logcat -d -b crash > crash8.txt || true
             if grep -q "FATAL EXCEPTION" crash8.txt; then cat crash8.txt; exit 1; fi
             adb shell dumpsys activity activities | grep -E "topResumedActivity" | tee top6.txt
-            grep -q 'WorkApp\$Screen' top6.txt || { echo "업무 기록 화면이 안 떴어요"; exit 1; }
-            echo "📋 업무 기록 화면 뜸"
-            adb exec-out screencap -p > shot-work.png || true
+            if grep -q 'WorkApp\$Screen' top6.txt; then echo "로그인 전인데 업무 기록 화면이 열렸어요"; exit 1; fi
+            echo "📋 업무(로그인 전) → 마을에 머묾"
             # ⑨ ＋ 할 일 적기 작은 창(업무 기록 위젯 ＋와 같은 창)
             adb logcat -c
             adb shell am start -W -n 'app.liferpg/.WorkApp$Quick'
@@ -322,7 +319,7 @@ jobs:
             # ⑪ 15분 확인이 걸렸는지(업무 기록 알림)
             adb shell dumpsys jobscheduler | grep -c 'WorkApp\$Sync' || true
             # ---- ⛪ 영성 기록(2026-11-16): 영성 기록 앱 시험과 같은 것 ----
-            # ⑫ 아빠 집 묵상과 같은 길(open=spirit): 영성 기록 화면 그 자체
+            # ⑫ 아빠 집 묵상과 같은 길(open=spirit): 로그인 전이라 마을에 머문다
             adb shell am force-stop app.liferpg
             adb logcat -c
             adb shell am start -W -n app.liferpg/.MainActivity --es open spirit
@@ -330,9 +327,8 @@ jobs:
             adb logcat -d -b crash > crash10.txt || true
             if grep -q "FATAL EXCEPTION" crash10.txt; then cat crash10.txt; exit 1; fi
             adb shell dumpsys activity activities | grep -E "topResumedActivity" | tee top8.txt
-            grep -q 'SpiritApp\$Screen' top8.txt || { echo "영성 기록 화면이 안 떴어요"; exit 1; }
-            echo "⛪ 영성 기록 화면 뜸"
-            adb exec-out screencap -p > shot-spirit.png || true
+            if grep -q 'SpiritApp\$Screen' top8.txt; then echo "로그인 전인데 영성 기록 화면이 열렸어요"; exit 1; fi
+            echo "⛪ 영성(로그인 전) → 마을에 머묾"
             # ⑬ SOC 적기 창(영성 기록 위젯·바로가기와 같은 창). 로그인 전이면 영성 기록 화면으로 넘어간다
             adb logcat -c
             adb shell am start -W -n 'app.liferpg/.SpiritApp$Quick' --es kind SOC
@@ -347,7 +343,7 @@ jobs:
             grep -q 'SpiritApp\$Widget' rcv.txt || { echo "영성 기록 위젯이 없어요"; exit 1; }
             echo "영성 기록 위젯 들어 있음"
             # ---- 👥 관계 기록(2026-11-16): 관계 기록 앱 시험과 같은 것 ----
-            # ⑮ 마을 「이웃」과 같은 길(open=rel): 관계 기록 화면 그 자체(화면 글은 relkit 안 assets/rel/index.html)
+            # ⑮ 마을 「이웃」과 같은 길(open=rel): 로그인 전이라 마을에 머문다
             adb shell am force-stop app.liferpg
             adb logcat -c
             adb shell am start -W -n app.liferpg/.MainActivity --es open rel
@@ -355,15 +351,28 @@ jobs:
             adb logcat -d -b crash > crash12.txt || true
             if grep -q "FATAL EXCEPTION" crash12.txt; then cat crash12.txt; exit 1; fi
             adb shell dumpsys activity activities | grep -E "topResumedActivity" | tee top10.txt
-            grep -q 'RelApp\$Screen' top10.txt || { echo "관계 기록 화면이 안 떴어요"; exit 1; }
-            adb logcat -d | grep -E "ERR_FILE_NOT_FOUND" | head -3 | tee asset.txt || true
-            if grep -q "ERR_FILE_NOT_FOUND" asset.txt; then echo "관계 기록 화면 글을 못 찾았어요"; exit 1; fi
-            echo "👥 관계 기록 화면 뜸"
-            adb exec-out screencap -p > shot-rel.png || true
+            if grep -q 'RelApp\$Screen' top10.txt; then echo "로그인 전인데 관계 기록 화면이 열렸어요"; exit 1; fi
+            echo "👥 이웃(로그인 전) → 마을에 머묾"
             # ⑯ 통화가 끝났을 때 받는 곳(PHONE_STATE)이 이 앱에 들어 있는지
             adb shell cmd package query-receivers --components -a android.intent.action.PHONE_STATE | grep liferpg | tee phone.txt || true
             grep -q 'RelApp\$Call' phone.txt || { echo "통화 받기가 안 들어 있어요"; exit 1; }
             echo "통화 받기 들어 있음"
+            # ---- 기록 화면 직접 열기(2026-11-18): 위젯 길은 로그인 전엔 막히니, 화면이 충돌 없이 뜨는지는 가상 폰 관리자 권한(adb root)으로 그 화면을 직접 열어 본다. 앱에 시험용 뒷문은 없다 ----
+            # 이 시험기는 줄마다 따로 돌아서(변수가 안 이어짐) root 여부를 파일(rootid.txt)에 남기고 줄마다 본다. root가 안 되면 건너뛴다
+            adb root || true
+            sleep 3
+            adb wait-for-device
+            adb shell id -u | tr -d '\r' > rootid.txt || true
+            if grep -qx 0 rootid.txt; then echo "root 됨: 기록 화면을 직접 열어 봐요"; else echo "root가 안 돼 직접 열기 시험은 건너뛰어요"; fi
+            if grep -qx 0 rootid.txt; then adb shell am force-stop app.liferpg; adb logcat -c; adb shell am start -W -n app.liferpg/.HealthActivity; sleep 15; adb logcat -d -b crash > crashD1.txt || true; if grep -q "FATAL EXCEPTION" crashD1.txt; then cat crashD1.txt; exit 1; fi; adb shell dumpsys activity activities | grep -E "topResumedActivity" | tee topD1.txt; grep -q "app.liferpg/.HealthActivity" topD1.txt || { echo "건강 기록 화면이 안 떴어요"; exit 1; }; echo "🏠 건강 기록 화면 뜸"; adb exec-out screencap -p > shot-home.png || true; fi
+            if grep -qx 0 rootid.txt; then adb shell am force-stop app.liferpg; adb logcat -c; adb shell am start -W -n app.liferpg/.WalletActivity; sleep 15; adb logcat -d -b crash > crashD2.txt || true; if grep -q "FATAL EXCEPTION" crashD2.txt; then cat crashD2.txt; exit 1; fi; adb shell dumpsys activity activities | grep -E "topResumedActivity" | tee topD2.txt; grep -q "app.liferpg/.WalletActivity" topD2.txt || { echo "재정 장부 화면이 안 떴어요"; exit 1; }; echo "📒 재정 기록 화면 뜸"; adb exec-out screencap -p > shot-wallet.png || true; fi
+            if grep -qx 0 rootid.txt; then adb shell am force-stop app.liferpg; adb logcat -c; adb shell am start -W -n 'app.liferpg/.WorkApp$Screen'; sleep 15; adb logcat -d -b crash > crashD3.txt || true; if grep -q "FATAL EXCEPTION" crashD3.txt; then cat crashD3.txt; exit 1; fi; adb shell dumpsys activity activities | grep -E "topResumedActivity" | tee topD3.txt; grep -q 'WorkApp\$Screen' topD3.txt || { echo "업무 기록 화면이 안 떴어요"; exit 1; }; echo "📋 업무 기록 화면 뜸"; adb exec-out screencap -p > shot-work.png || true; fi
+            if grep -qx 0 rootid.txt; then adb shell am force-stop app.liferpg; adb logcat -c; adb shell am start -W -n 'app.liferpg/.SpiritApp$Screen'; sleep 15; adb logcat -d -b crash > crashD4.txt || true; if grep -q "FATAL EXCEPTION" crashD4.txt; then cat crashD4.txt; exit 1; fi; adb shell dumpsys activity activities | grep -E "topResumedActivity" | tee topD4.txt; grep -q 'SpiritApp\$Screen' topD4.txt || { echo "영성 기록 화면이 안 떴어요"; exit 1; }; echo "⛪ 영성 기록 화면 뜸"; adb exec-out screencap -p > shot-spirit.png || true; fi
+            # 관계 기록 화면 글은 relkit 안 assets/rel/index.html: 못 찾으면 실패
+            if grep -qx 0 rootid.txt; then adb shell am force-stop app.liferpg; adb logcat -c; adb shell am start -W -n 'app.liferpg/.RelApp$Screen'; sleep 15; adb logcat -d -b crash > crashD5.txt || true; if grep -q "FATAL EXCEPTION" crashD5.txt; then cat crashD5.txt; exit 1; fi; adb shell dumpsys activity activities | grep -E "topResumedActivity" | tee topD5.txt; grep -q 'RelApp\$Screen' topD5.txt || { echo "관계 기록 화면이 안 떴어요"; exit 1; }; adb logcat -d | grep -E "ERR_FILE_NOT_FOUND" | head -3 | tee asset.txt || true; if grep -q "ERR_FILE_NOT_FOUND" asset.txt; then echo "관계 기록 화면 글을 못 찾았어요"; exit 1; fi; echo "👥 관계 기록 화면 뜸"; adb exec-out screencap -p > shot-rel.png || true; fi
+            adb unroot || true
+            sleep 3
+            adb wait-for-device
             # ⑰ 잠금화면 앞에 마을(2026-11-18): 잠금(PIN)을 걸고 기능을 켠 뒤 화면을 껐다 켜면 마을이 잠금화면 위에 떠 있는지
             adb shell locksettings set-pin 1234
             adb shell appops set app.liferpg SYSTEM_ALERT_WINDOW allow
