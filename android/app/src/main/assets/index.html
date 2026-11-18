@@ -102,9 +102,10 @@ select{width:100%;font:inherit;padding:11px;border:1px solid var(--line);border-
 .spot .lb small{display:block;font-weight:500;color:var(--mute);font-size:11px}
 /* 건물 옆 말풍선 버튼(2026-11-18 룡 「말풍선이나 건물 옆에 띄우는 버튼으로 가볍게」): 생각났을 때 바로 적는 길 */
 .spot .lbw{position:relative;display:inline-block}
-.spot .bub{position:absolute;bottom:0;display:flex;gap:10px}
-.spot .bub.r{left:100%;margin-left:8px}.spot .bub.l{right:100%;margin-right:8px}
-.spot .bub b{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:22px;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.25);font-size:22px;font-weight:800;color:var(--brand);line-height:1}
+/* 말풍선은 늘 건물 그림 오른쪽 위(약간 걸치게), 꼬리가 건물을 가리킨다(2026-11-18 룡 「항상 건물그림 오른쪽 위, 꼭 말풍선처럼」) */
+.spot .bub{position:absolute;left:calc(50% + var(--w) / 2 - 26px);top:calc(52px - var(--h));transform:translateY(-100%);display:flex;gap:6px;padding:5px;background:#fff;border-radius:18px;box-shadow:0 2px 8px rgba(0,0,0,.25);z-index:3}
+.spot .bub::after{content:'';position:absolute;left:var(--t,14px);bottom:-9px;border:6px solid transparent;border-top:10px solid #fff;border-bottom:0;filter:drop-shadow(0 2px 1px rgba(0,0,0,.12))}
+.spot .bub b{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:20px;background:#f4f6fa;font-size:22px;font-weight:800;color:var(--brand);line-height:1}
 .spot .bub b.out{color:#1F6F54}.spot .bub b.in{color:#1B62B5}
 .spot .lb .warn{color:#c8553d;font-weight:700}
 /* 마을 건물에는 ✓를 안 띄운다(2026-11-16 룡 「아예 체크를 없애줘, 굳이?」). 이름표 아래 작은 글(오늘 한 것)만 */
@@ -792,6 +793,16 @@ window.openToday = () => { if (has('업무') && gate('업무', openToday)) retur
 window.soon = w => toast(w + '는 다음 단계에 붙여요');
 // 👥 이웃 = 관계 기록 그 자체(2026-11-16, 원본 한 벌 relkit): 통화 기록·사람·메모. 앱이 아니면(브라우저) 안내만
 window.openRel = () => { if (gate('관계', openRel)) return; const N = window.Native || {}; if (N.openRel) N.openRel(); else toast('관계 기록은 앱에서 열려요'); };
+// 말풍선이 화면 밖으로 나가면 안으로 당긴다(오른쪽 끝 금고 등). 꼬리는 건물 쪽에 그대로 둔다
+function fitBubbles(){
+  const W = document.getElementById('world'); if (!W) return;
+  const wr = W.getBoundingClientRect();
+  W.querySelectorAll('.spot .bub').forEach(b => {
+    b.style.marginLeft = '0px'; b.style.removeProperty('--t');
+    const r = b.getBoundingClientRect(), over = r.right - (Math.min(wr.right, window.innerWidth) - 6);
+    if (over > 0) { b.style.marginLeft = -over + 'px'; b.style.setProperty('--t', Math.min(14 + over, r.width - 24) + 'px'); }
+  });
+}
 function town(res, h){
   const cl = Math.floor(res.charShown), cp = res.charShown - cl;
   const got = a => res.areas[a].todayItems ? `<span class="got">${res.areas[a].todayXp ? '+'+res.areas[a].todayXp : '✓'}</span>` : '';
@@ -807,7 +818,8 @@ function town(res, h){
     : ev.length ? ev.map(evLine).join('') : `<div class="evl"><span class="nm mute">📅 남은 일정 없음</span></div>`;
   // bub = 건물 위에 띄우는 말풍선 버튼들(html). 누르면 건물은 안 눌리게 막는다
   // 말풍선은 이름표 옆(side 'r' 오른쪽 · 'l' 왼쪽)에 띄운다. 건물 그림과 누르는 칸의 자리는 그대로
-  const spot = (x, y, w, hgt, onc, area, name, st, bub, side) => `<div class="spot" style="left:${x}%;top:${y}%" onclick="${onc}"><div class="hit" style="width:${w}px;height:${hgt}px;margin-top:-${hgt-30}px"></div><div class="lbw"><div class="lb">${name}<small>${st}</small></div>${bub ? `<div class="bub ${side || 'r'}" onclick="event.stopPropagation()">${bub}</div>` : ''}</div></div>`;
+  // 말풍선은 건물 그림(누르는 칸) 오른쪽 위. 화면 밖으로 나가면 아래 fitBubbles가 안으로 당긴다
+  const spot = (x, y, w, hgt, onc, area, name, st, bub) => `<div class="spot" style="left:${x}%;top:${y}%;--w:${w}px;--h:${hgt}px" onclick="${onc}"><div class="hit" style="width:${w}px;height:${hgt}px;margin-top:-${hgt-30}px"></div><div class="lbw"><div class="lb">${name}<small>${st}</small></div></div>${bub ? `<div class="bub" onclick="event.stopPropagation()">${bub}</div>` : ''}</div>`;
   // 👛 금고: 은행·카드 알림에서 온 「안 적은 것」 수(폰 안, 재정 위젯의 빨간 표와 같은 수)
   let finPend = 0; try { finPend = N.finPending ? N.finPending() : 0; } catch(e) {}
   // 신청한 기록이 승인을 기다리면 마을 위에 늘 보인다(2026-11-17). 연 기록이 하나도 없으면 더하는 길을 알려 준다
@@ -818,9 +830,9 @@ function town(res, h){
   const todayN = (h.tasks || []).filter(t => t.requester !== h.name || (t.due && t.due <= h.today) || ((t.remind||'').slice(0,10) && (t.remind||'').slice(0,10) <= h.today)).length;
   document.getElementById('town').innerHTML = `
     <div id="world">${SCENE}
-      ${has('영성') ? spot(54, 38, 90, 110, 'openFather()', '영성', '아빠 집', sp.length ? sp.join('·') : '아직', `<b onclick="openFwNow()">＋</b>`, 'r') : ''}
+      ${has('영성') ? spot(54, 38, 90, 110, 'openFather()', '영성', '아빠 집', sp.length ? sp.join('·') : '아직', `<b onclick="openFwNow()">＋</b>`) : ''}
       ${has('건강') ? spot(24, 57, 96, 96, 'openHome()', '건강', '집', homeSt) : ''}
-      ${has('재정') ? spot(78, 68, 96, 80, 'openLedger()', '재정', '금고', (finPend ? `<span class="warn">안 적은 것 ${finPend}</span>` : h.fin_today ? '오늘 '+h.fin_today+'건' : '돈 썼을 때'), `<b class="in" onclick="openWalletKind('수입')">＋</b><b class="out" onclick="openWalletKind('지출')">−</b>`, 'l') : ''}
+      ${has('재정') ? spot(78, 68, 96, 80, 'openLedger()', '재정', '금고', (finPend ? `<span class="warn">안 적은 것 ${finPend}</span>` : h.fin_today ? '오늘 '+h.fin_today+'건' : '돈 썼을 때'), `<b class="in" onclick="openWalletKind('수입')">＋</b><b class="out" onclick="openWalletKind('지출')">−</b>`) : ''}
       ${has('업무') && N.openTodo ? spot(16.5, 76, 80, 60, 'Native.openTodo()', null, '사무실', '할 일') : ''}
       ${has('관계') ? spot(82, 44, 80, 70, 'openRel()', '관계', '이웃', '통화·메모') : ''}
       <div class="me">${meEmoji()}</div></div>
@@ -835,6 +847,7 @@ function town(res, h){
       <button class="act s" style="display:none" onclick="soon('상점')">🏪 상점<small>위시리스트</small></button>
       <button class="act c" onclick="openToday()">📋 오늘<small style="color:var(--mute)">${has('업무') ? '할 일 '+todayN : '일정'}</small></button>
     </div>`;
+  requestAnimationFrame(fitBubbles);
   const ts = document.getElementById('todaySheet');
   if (ts) ts.querySelector('.in').innerHTML = todayCard(h, res) + TAIL;
   if (PENDING) { const p = PENDING; PENDING = null; openFrom(p); }
