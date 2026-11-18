@@ -100,6 +100,11 @@ select{width:100%;font:inherit;padding:11px;border:1px solid var(--line);border-
 .spot .hit{margin:0 auto}
 .spot .lb{display:inline-block;margin-top:2px;background:rgba(255,255,255,.93);border-radius:10px;padding:3px 9px;font-size:13px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.15);white-space:nowrap}
 .spot .lb small{display:block;font-weight:500;color:var(--mute);font-size:11px}
+/* 건물 옆 말풍선 버튼(2026-11-18 룡 「말풍선이나 건물 옆에 띄우는 버튼으로 가볍게」): 생각났을 때 바로 적는 길 */
+.spot .bub{display:flex;gap:6px;justify-content:center;margin-bottom:4px}
+.spot .bub b{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:34px;padding:0 9px;border-radius:17px;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.25);font-size:19px;font-weight:800;color:var(--brand);line-height:1}
+.spot .bub b.out{color:#1F6F54}.spot .bub b.in{color:#1B62B5}
+.spot .lb small.warn{color:#c8553d;font-weight:700}
 /* 마을 건물에는 ✓를 안 띄운다(2026-11-16 룡 「아예 체크를 없애줘, 굳이?」). 이름표 아래 작은 글(오늘 한 것)만 */
 .me{position:absolute;left:50%;top:66%;transform:translate(-50%,-50%);font-size:44px;animation:bob 2.4s ease-in-out infinite;pointer-events:none}
 @keyframes bob{50%{transform:translate(-50%,-56%)}}
@@ -431,7 +436,7 @@ const PACKS = [
   {k:'건강', icon:'🏠', b:'집', main:'잠·식사·운동 기록을 저장해서 내 캐릭터를 키워요.',
    sens:'컨디션·식사·운동 메모처럼 <b>몸 상태(건강)에 관한 기록</b>을 저장하는 데 따로 동의해요.',
    what:'일어난·잔 시각, 컨디션, 식사·운동 사진과 메모, 잠금 해제 이유'},
-  {k:'재정', icon:'👛', b:'시장', main:'쓴 돈·들어온 돈을 저장해서 내 캐릭터를 키워요.',
+  {k:'재정', icon:'👛', b:'금고', main:'쓴 돈·들어온 돈을 저장해서 내 캐릭터를 키워요.',
    what:'날짜, 금액, 어디에 썼는지 짧은 이름, 메모', more:'계좌·카드 번호·잔액은 저장하지 않아요'},
   {k:'영성', icon:'⛪', b:'아빠 집', main:'묵상·감사·기도·일기를 저장해서 내 캐릭터를 키워요.',
    sens:'묵상·기도·일기처럼 <b>신앙에 관한 기록</b>을 저장하는 데 따로 동의해요.',
@@ -633,7 +638,7 @@ window.setupView = (pack, go) => {
   // 🏘 잠금화면 앞에 마을(2026-11-18 룡): 화면을 켜면 잠금 풀기 전에 마을이 먼저. 고르는 것이라 「한 번에 켜기」에는 안 넣는다
   if (!pack && N.lockFront) { const lf = N.lockFront(), ov = N.overlayOn();
     lock = row('🏘 잠금화면 앞에 마을 <span class="small mute">고르는 것</span>', lf && !ov ? '「다른 앱 위에 표시」를 허용해야 떠요' : '화면을 켜면 잠금 풀기 전에 마을이 먼저 보여요. 누르면 잠금을 풀어요',
-      (lf && !ov ? btn('Native.openOverlay()', '허용') + ' ' : '') + btn(`Native.setLockFront(${!lf});closeSheet();setupView()`, lf ? '끄기' : '켜기')); }
+      (lf && !ov ? btn('Native.openOverlay()', '허용') + ' ' : '') + (lf && N.lockNote ? btn('Native.lockNote()', '알림 숨기기') + ' ' : '') + btn(`Native.setLockFront(${!lf});closeSheet();setupView()`, lf ? '끄기' : '켜기')); }
   const head = !N.perms ? '알림·캘린더·배터리 같은 것은 앱에서만 켤 수 있어요'
     : pack ? (miss.length ? `${PERM_PACK[pack]} 기록이 제대로 돌려면 아래를 켜 주세요. 모두 선택이에요. 안 켜도 기록은 쓸 수 있고, 적힌 기능만 안 돼요.` : `${PERM_PACK[pack]} 기록에 필요한 것이 다 켜져 있어요.`)
     : miss.length ? '아래를 켜야 기록이 제대로 돌아요. 모두 선택이에요. 안 켜도 기록은 쓸 수 있고, 적힌 기능만 안 돼요.' : '다 켜져 있어요.';
@@ -798,7 +803,10 @@ function town(res, h){
   const evHtml = ev === null
     ? (N.askCalendar ? `<div class="evl" onclick="Native.askCalendar()"><span class="nm">📅 눌러서 캘린더 보기를 허용해 주세요</span></div>` : `<div class="evl"><span class="nm mute">📅 일정은 앱에서 보여요</span></div>`)
     : ev.length ? ev.map(evLine).join('') : `<div class="evl"><span class="nm mute">📅 남은 일정 없음</span></div>`;
-  const spot = (x, y, w, hgt, onc, area, name, st) => `<div class="spot" style="left:${x}%;top:${y}%" onclick="${onc}"><div class="hit" style="width:${w}px;height:${hgt}px;margin-top:-${hgt-30}px"></div><div class="lb">${name}<small>${st}</small></div></div>`;
+  // bub = 건물 위에 띄우는 말풍선 버튼들(html). 누르면 건물은 안 눌리게 막는다
+  const spot = (x, y, w, hgt, onc, area, name, st, bub) => `<div class="spot" style="left:${x}%;top:${y}%" onclick="${onc}">${bub ? `<div class="bub" onclick="event.stopPropagation()">${bub}</div>` : ''}<div class="hit" style="width:${w}px;height:${hgt}px;margin-top:-${bub ? hgt-70 : hgt-30}px"></div><div class="lb">${name}<small>${st}</small></div></div>`;
+  // 👛 금고: 은행·카드 알림에서 온 「안 적은 것」 수(폰 안, 재정 위젯의 빨간 표와 같은 수)
+  let finPend = 0; try { finPend = N.finPending ? N.finPending() : 0; } catch(e) {}
   // 신청한 기록이 승인을 기다리면 마을 위에 늘 보인다(2026-11-17). 연 기록이 하나도 없으면 더하는 길을 알려 준다
   const waitPk = ME && !ME.owner ? PACKS.filter(p => ME.packs && ME.packs[p.k] === 'requested') : [];
   const waitHtml = waitPk.length
@@ -807,9 +815,9 @@ function town(res, h){
   const todayN = (h.tasks || []).filter(t => t.requester !== h.name || (t.due && t.due <= h.today) || ((t.remind||'').slice(0,10) && (t.remind||'').slice(0,10) <= h.today)).length;
   document.getElementById('town').innerHTML = `
     <div id="world">${SCENE}
-      ${has('영성') ? spot(54, 38, 90, 110, 'openFather()', '영성', '아빠 집', sp.length ? sp.join('·') : '아직') : ''}
+      ${has('영성') ? spot(54, 38, 90, 110, 'openFather()', '영성', '아빠 집', sp.length ? sp.join('·') : '아직', `<b onclick="openFwNow()">＋</b>`) : ''}
       ${has('건강') ? spot(24, 57, 96, 96, 'openHome()', '건강', '집', homeSt) : ''}
-      ${has('재정') ? spot(78, 68, 96, 80, 'openWallet()', '재정', '시장', h.fin_today ? '오늘 '+h.fin_today+'건' : '돈 썼을 때') : ''}
+      ${has('재정') ? spot(78, 68, 96, 80, 'openLedger()', '재정', '금고', (finPend ? `<span class="warn" style="color:#c8553d;font-weight:700">안 적은 것 ${finPend}</span>` : h.fin_today ? '오늘 '+h.fin_today+'건' : '돈 썼을 때'), `<b class="in" onclick="openWalletKind('수입')">＋</b><b class="out" onclick="openWalletKind('지출')">−</b>`) : ''}
       ${has('업무') && N.openTodo ? spot(16.5, 76, 80, 60, 'Native.openTodo()', null, '사무실', '할 일') : ''}
       ${has('관계') ? spot(82, 44, 80, 70, 'openRel()', '관계', '이웃', '통화·메모') : ''}
       <div class="me">${meEmoji()}</div></div>
@@ -944,6 +952,13 @@ window.openHome = () => {
 
 // 👛 지갑 = 재정 기록(오늘 날짜로 한 줄). 자주 쓴 항목이 먼저
 // 재정 기록 앱이 있으면 그 앱의 빠른 기록 창(재정 위젯과 같은 창)을 연다. 돌아오면 다시 불러와 +EXP. 없을 때만 아래 창
+// 금고 말풍선 ＋ / −: 그 종류로 빠른 기록 창(재정 위젯의 두 버튼과 같은 창). 안 적은 것이 있으면 창 위에 뜬다
+window.openWalletKind = kind => {
+  if (gate('재정', () => openWalletKind(kind))) return;
+  const N = window.Native || {};
+  if (N.openWalletKind) { N.openWalletKind(kind); return; }
+  openWallet();
+};
 window.openWallet = () => {
   if (gate('재정', openWallet)) return;
   if (window.Native && Native.openWallet && Native.openWallet()) return;
@@ -1011,25 +1026,45 @@ function openSpiritApp(tab){
   if (window.Native && Native.openSpirit) Native.openSpirit(tab);
   else open('https://personal-record-alpha.vercel.app/?tab=' + encodeURIComponent(tab));
 }
+// 마을 아빠 집 옆 ＋ 말풍선: 생각났을 때 바로 「오늘 기록」(감사·칭찬·순종·깨달음·SOC). 지난번 고른 종류로 연다(2026-11-18 룡 「바로 안 하면 까먹거든」)
+window.openFwNow = async () => {
+  if (gate('영성', openFwNow)) return;
+  try { if (!SP) await spiritDay(); } catch(e) { toast(errMsg(e)); return; }
+  let last = '감사'; try { last = localStorage.getItem('rpg_fw_kind') || '감사'; } catch(e) {}
+  openFw(FW_KINDS.includes(last) ? last : '감사');
+};
+// 통독 읽은 것·번 수 받아 두기
+async function bibleLoad(){ const r = await rpc('rpg_bible', {p_token: token()}); BREAD = new Set(r.read); BROUNDS = +r.rounds || 0; BSTART = r.started || null; BDONE = r.done || []; }
+// 다음에 체크할 자리: 성경 순서로 마지막에 읽은 장의 다음 장(아직 하나도 없으면 맨 처음). {book, ch}
+function bibleNext(){
+  const all = BIBLE.flatMap(([, bs]) => bs.flatMap(([b, n]) => Array.from({length: n}, (_, i) => [b, i + 1])));
+  let last = -1; all.forEach(([b, c], i) => { if (BREAD.has(b + ' ' + c)) last = i; });
+  let i = last + 1; while (i < all.length && BREAD.has(all[i][0] + ' ' + all[i][1])) i++;
+  if (i >= all.length) i = all.findIndex(([b, c]) => !BREAD.has(b + ' ' + c));
+  return i < 0 ? null : {book: all[i][0], ch: all[i][1]};
+}
+// ⛪ 아빠 집(2026-11-18 룡): 시간 내서 각 잡고 하는 것만 — 📖 묵상 · 📝 일기 · 📚 통독. 「오늘 기록」은 마을의 ＋ 말풍선으로 뺐다.
+// 통독은 맨 위 한 줄(몇 독째·시작일·읽은 장)과 「체크」 버튼. 누르면 체크표가 다음에 읽을 책 자리로 열린다
 window.openFather = async () => {
   if (gate('영성', openFather)) return;
   const s = sheet(`<h3>⛪ 아빠 집</h3><div class="mute small">불러오는 중…</div>`);
-  try { await spiritDay(); } catch(e) { s.querySelector('.in').innerHTML = '<h3>⛪ 아빠 집</h3><div>'+esc(errMsg(e))+'</div>'; return; }
+  try { await Promise.all([spiritDay(), bibleLoad()]); } catch(e) { s.querySelector('.in').innerHTML = '<h3>⛪ 아빠 집</h3><div>'+esc(errMsg(e))+'</div>'; return; }
   const n = k => spOf(k).length;
-  // 2026-11-16 룡 「버튼이 너무 많아」: 📖 묵상 · ✍️ 오늘 기록(안에서 감사·칭찬·순종·깨달음·SOC 고름) · 📝 일기 · 📚 통독 넷만. 🕊 기도 버튼은 뺌(「기도라는 것에 맞지 않아」)
   const btn = (k, ic, nm, sub) => `<div class="tile sm" data-k="${k}"><div class="ic">${ic}</div><div class="nm">${nm}</div><div class="st">${sub}</div></div>`;
-  const rec = FW_KINDS.reduce((t, k) => t + n(k), 0);
-  s.querySelector('.in').innerHTML = `<h3>⛪ 아빠 집</h3><div class="town3" style="grid-template-columns:repeat(2,1fr)">
-    ${btn('묵상','📖','묵상', n('묵상') ? '오늘 했어요' : '아직')}${btn('기록','✍️','오늘 기록', rec ? rec+'개' : '감사·순종·깨달음…')}
-    ${btn('일기','📝','일기', n('일기') ? '이어 쓰기' : '쓰기')}${btn('통독','📚','통독', n('통독') ? '오늘 '+n('통독')+'장' : '체크표')}</div>
-    <div class="small mute">기록은 영성 기록과 같은 곳에 쌓여요</div>`;
+  const pct = Math.round(BREAD.size / BIBLE_ALL * 1000) / 10, nx = bibleNext();
+  s.querySelector('.in').innerHTML = `<h3>⛪ 아빠 집</h3>
+    <div class="row" style="justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;margin-bottom:10px">
+      <div style="flex:1"><div><b>📚 통독</b> <span class="small">${BROUNDS ? (BROUNDS+1)+'독째' : '1독째'}${BSTART ? ' · '+md(BSTART)+' 시작' : ''}</span></div>
+        <div class="small mute">${BREAD.size} / ${BIBLE_ALL}장 · ${pct}%${nx ? ' · 다음 '+esc(nx.book)+' '+nx.ch+'장' : ''}${n('통독') ? ' · 오늘 '+n('통독')+'장' : ''}</div></div>
+      <button data-k="통독" style="width:auto;padding:8px 16px">체크</button></div>
+    <div class="town3" style="grid-template-columns:repeat(2,1fr)">
+    ${btn('묵상','📖','묵상', n('묵상') ? '오늘 했어요' : '아직')}${btn('일기','📝','일기', n('일기') ? '이어 쓰기' : '쓰기')}</div>
+    <div class="small mute">오늘 기록(감사·순종·깨달음…)은 마을의 아빠 집 옆 ＋ 로 바로 적어요</div>`;
   s.querySelectorAll('[data-k]').forEach(t => t.onclick = () => {
     const k = t.dataset.k;
     if (k === '묵상') return openMeditation();
     if (k === '일기') return openDiary();
-    if (k === '통독') return openBible();
-    let last = '감사'; try { last = localStorage.getItem('rpg_fw_kind') || '감사'; } catch(e) {}
-    openFw(FW_KINDS.includes(last) ? last : '감사');
+    if (k === '통독') return openBible(true);
   });
 };
 
@@ -1043,9 +1078,9 @@ const BIBLE = [['구약',[['창세기',50],['출애굽기',40],['레위기',27],
 const BIBLE_ALL = BIBLE.reduce((s, [, bs]) => s + bs.reduce((t, b) => t + b[1], 0), 0);
 let BREAD = null, BOPEN = ls.get('rpg_bopen', null);
 let BROUNDS = 0, BSTART = null, BDONE = []; // 끝낸 통독 번 수 · 이번 바퀴 시작일 · 끝낸 바퀴 기록(2026-11-16 룡)
-async function openBible(){
+async function openBible(jump){
   const s = sheet(`<h3>📚 통독</h3><div class="mute small">불러오는 중…</div>`);
-  try { const r = await rpc('rpg_bible', {p_token: token()}); BREAD = new Set(r.read); BROUNDS = +r.rounds || 0; BSTART = r.started || null; BDONE = r.done || []; } catch(e) { s.querySelector('.in').innerHTML = '<h3>📚 통독</h3><div>'+esc(errMsg(e))+'</div>'; return; }
+  try { await bibleLoad(); } catch(e) { s.querySelector('.in').innerHTML = '<h3>📚 통독</h3><div>'+esc(errMsg(e))+'</div>'; return; }
   const draw = () => {
     const pct = Math.round(BREAD.size / BIBLE_ALL * 1000) / 10;
     let h = `<h3>📚 통독${BROUNDS ? ` <span class="small">${BROUNDS}독</span>` : ''} <span class="small mute" style="float:right">${BROUNDS ? (BROUNDS+1)+'독째 · ' : ''}${BSTART ? md(BSTART)+' 시작 · ' : ''}${BREAD.size} / ${BIBLE_ALL}장 · ${pct}%</span></h3>
@@ -1074,7 +1109,10 @@ async function openBible(){
       CHANGED = true;
     });
   };
+  if (jump === true) { const nx = bibleNext(); if (nx) { BOPEN = nx.book; ls.set('rpg_bopen', BOPEN); } }
   draw();
+  // 다음에 체크할 책 자리로(예: 아모스 1장까지 읽었으면 아모스 줄이 화면 위로)
+  if (jump === true && BOPEN) { const r = [...s.querySelectorAll('.bk')].find(x => x.dataset.b === BOPEN); if (r) setTimeout(() => r.scrollIntoView({block: 'start'}), 50); }
 }
 let CHANGED = false; // 통독 체크를 바꿨으면 창을 닫을 때 다시 불러온다(+EXP)
 
@@ -1246,10 +1284,17 @@ function openDiary(){
   // 오늘 모인 것(순종·깨달음·감사·칭찬·SOC)을 일기 위에 보여 준다: 일기 쓸 때 보고 쓰게(2026-11-16 룡)
   const got = [['순종','🙌'],['깨달음','💡'],['감사','🙏'],['칭찬','👏'],['SOC','🏫']]
     .flatMap(([k, ic]) => spOf(k).map(e => `<div>${ic} ${e.target ? `<b>${esc(e.target)}</b> — ` : ''}${esc(e.body || e.situation || '')}</div>`));
+  // 일기 쓸 때 오늘 묵상과 오늘 기록을 버튼으로 펼쳐 본다(2026-11-18 룡 「오늘 기록의 합본은 일기 쓸 때」)
+  const mq = spOf('묵상')[0] || {};
+  const med = [['verse','📖'],['hear','① 말씀하시는 것'],['obey','② 순종할 것'],['pray','③ 기도제목'],['why','④ 왜 필요했나']]
+    .filter(([k]) => (mq[k] || '').trim()).map(([k, l]) => `<div><span class="mute">${l}</span> ${esc(mq[k].trim())}</div>`);
   const s = sheet(`<h3>📝 오늘 일기</h3>
-    ${got.length ? `<div class="small" style="margin-bottom:8px;line-height:1.6"><div class="mute">오늘 모인 것</div>${got.join('')}</div>` : ''}
+    <div class="chips" style="margin-bottom:6px"><span class="chip" data-see="med">📖 묵상 ${med.length ? '' : '(아직)'}</span><span class="chip" data-see="got">✍️ 오늘 기록 ${got.length ? got.length+'개' : '(아직)'}</span></div>
+    <div id="see-med" class="small" style="display:none;margin-bottom:8px;line-height:1.6">${med.join('') || '<span class="mute">오늘 묵상이 아직 없어요</span>'}</div>
+    <div id="see-got" class="small" style="display:none;margin-bottom:8px;line-height:1.6">${got.join('') || '<span class="mute">오늘 적은 것이 아직 없어요</span>'}</div>
     <textarea id="tx" rows="10" placeholder="오늘 하루" style="width:100%;font:inherit;padding:12px;border:1px solid var(--line);border-radius:10px;line-height:1.6">${esc(cur ? cur.body || '' : '')}</textarea>
     <div class="err" id="err"></div><button id="go">${cur ? '고쳐 저장' : '저장'}</button>`);
+  s.querySelectorAll('[data-see]').forEach(c => c.onclick = () => { const el = s.querySelector('#see-' + c.dataset.see); const on = el.style.display === 'none'; el.style.display = on ? '' : 'none'; c.classList.toggle('on', on); });
   s.querySelector('#go').onclick = async () => {
     const tx = s.querySelector('#tx').value, err = s.querySelector('#err');
     if (!tx.trim()) { err.textContent = '일기를 적어 주세요'; return; }

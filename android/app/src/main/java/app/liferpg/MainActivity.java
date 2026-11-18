@@ -374,6 +374,11 @@ public class MainActivity extends Activity {
         // 🏘 잠금화면 앞에 마을(2026-11-18): 켜짐 · 켜고 끄기 · 「다른 앱 위에 표시」 허용됐나 · 그 설정 화면
         @JavascriptInterface public boolean lockFront() { return LockFront.on(MainActivity.this); }
         @JavascriptInterface public void setLockFront(boolean v) { LockFront.set(getApplicationContext(), v); }
+        // 늘 떠 있는 「잠금화면 앞에 마을 켜짐」 알림을 숨기는 곳(그 알림 칸만 끄면 기능은 그대로 돈다)
+        @JavascriptInterface public void lockNote() {
+            android.widget.Toast.makeText(MainActivity.this, "이 알림 칸을 끄면 알림만 사라지고 기능은 그대로예요", android.widget.Toast.LENGTH_LONG).show();
+            open(new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName()).putExtra(Settings.EXTRA_CHANNEL_ID, "lock_front"));
+        }
         @JavascriptInterface public boolean overlayOn() { return LockFront.allowed(MainActivity.this); }
         @JavascriptInterface public void openOverlay() {
             open(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())));
@@ -466,6 +471,13 @@ public class MainActivity extends Activity {
         }
 
         // 지갑: 재정 기록 빠른 기록 창(재정 위젯 − 지출과 똑같은 창). 2026-11-15부터 이 앱 안의 같은 창(원본 한 벌 finkit)이라 늘 true
+        // 👛 금고 말풍선 ＋/−: 그 종류(수입·지출)로 빠른 기록 창 · 은행·카드 알림에서 온 「안 적은 것」 수
+        @JavascriptInterface public void openWalletKind(String kind) {
+            open(app.recordkit.fin.FinWidget.quickIntent(MainActivity.this, WalletQuickActivity.class, "수입".equals(kind) ? "수입" : "지출"));
+        }
+        @JavascriptInterface public int finPending() {
+            try { return app.recordkit.fin.FinPending.count(getApplicationContext()); } catch (Throwable t) { return 0; }
+        }
         @JavascriptInterface public boolean openWallet() {
             open(Widget.walletIntent(MainActivity.this));
             return true;
