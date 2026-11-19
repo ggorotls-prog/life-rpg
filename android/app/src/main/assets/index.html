@@ -126,6 +126,9 @@ select{width:100%;font:inherit;padding:11px;border:1px solid var(--line);border-
 .evl .tt{color:var(--brand);font-size:12px;font-weight:700;white-space:nowrap;min-width:84px}
 .evl .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .evl.now .tt{color:#d62d1c}
+/* 일정 줄 🎙 = 녹음 알림 걸기(2026-11-19 룡 「일정에서 미리, 본인이 직접」). 건 것은 진하게 */
+.mic{font-size:15px;padding:3px 7px;border-radius:12px;opacity:.35;flex:none;cursor:pointer}.mic.on{opacity:1;background:#fde7e3}
+.mtime{display:flex;gap:10px;margin:10px 0}.mtime label{flex:1;font-size:13px;color:var(--mute)}.mtime input{width:100%;font:inherit;font-size:18px;padding:8px;border:1px solid var(--line);border-radius:10px;margin-top:4px}
 .act{flex:1;border:0;border-radius:16px;padding:13px 0 11px;font:inherit;font-weight:800;font-size:15px;color:#fff;box-shadow:0 3px 0 rgba(0,0,0,.2);width:auto}
 .act small{display:block;font-weight:500;font-size:11px;opacity:.9}
 .act.q{background:#d9822b}.act.s{background:#3b5b8c}.act.c{background:#fff;color:var(--ink)}
@@ -788,9 +791,39 @@ function nextEvents(h, n){
   return JSON.parse(raw).filter(e => e.end > now && !others(e.title||'', tag))
     .sort((a,b) => (b.allDay?1:0) - (a.allDay?1:0) || a.begin - b.begin).slice(0, n);
 }
+// ── 녹음 알림 걸기: 일정 줄 🎙 → 시작·끝 시각 → 그 시각에 「녹음 켜세요」·「녹음 끄세요」(폰 안에만 저장) ──
+let PLANS = {};
+function loadPlans(){ try { PLANS = JSON.parse((window.Native && Native.meetPlans) ? Native.meetPlans() || '{}' : '{}'); } catch(e) { PLANS = {}; } }
+function micBtn(id, begin, end, title){
+  if (!window.Native || !Native.planMeet) return '';
+  const on = PLANS[id + ':' + begin];
+  return `<span class="mic${on ? ' on' : ''}" data-t="${esc(title || '미팅')}" onclick="event.stopPropagation();meetPick('${id}','${begin}','${end}',this)">🎙${on ? ' ' + hm(on.start) : ''}</span>`;
+}
+const dayStart = ms => Math.floor((+ms + 9*3600e3) / 864e5) * 864e5 - 9*3600e3;
+window.meetPick = (id, begin, end, el) => {
+  const key = id + ':' + begin, p = PLANS[key], title = el.dataset.t;
+  sheet(`<h3>🎙 녹음 알림</h3><div class="small mute">${esc(title)}</div>
+    <div class="mtime"><label>시작<input type="time" id="mS" value="${hm(p ? p.start : +begin)}"></label><label>끝<input type="time" id="mE" value="${hm(p ? p.end : +end)}"></label></div>
+    <div class="small mute">시작에 「🎙 녹음 켜세요」, 끝에 「⏹ 녹음 끄세요」가 와요. 일정에 이동 시간이 들어 있으면 실제 미팅 시각으로 고쳐 주세요.</div>
+    <button style="width:100%;margin-top:12px" onclick="meetSave('${key}','${begin}')">${p ? '바꾸기' : '녹음 알림 걸기'}</button>
+    ${p ? `<button class="ghost" style="width:100%;margin-top:8px" onclick="meetOff('${key}')">녹음 알림 끄기</button>` : ''}`).dataset.t = title;
+};
+window.meetSave = (key, begin) => {
+  const base = Math.max(dayStart(begin), dayStart(Date.now())); // 며칠 이어지는 일정은 오늘 기준
+  const toMs = v => { if (!v) return NaN; const [h, m] = v.split(':').map(Number); return isNaN(h) ? NaN : base + h*3600e3 + (m||0)*60e3; };
+  let st = toMs(document.getElementById('mS').value), en = toMs(document.getElementById('mE').value);
+  if (isNaN(st) || isNaN(en)) { toast('시작·끝 시각을 넣어 주세요'); return; }
+  if (en <= st) en += 864e5;
+  if (en <= Date.now()) { toast('이미 끝난 시각이에요'); return; }
+  const title = document.querySelector('.sheet').dataset.t || '미팅';
+  Native.planMeet(key, title, String(st), String(en));
+  loadPlans(); closeSheet(); toast('녹음 알림을 걸었어요 · ' + hm(st) + '~' + hm(en));
+  if (RES && HOME) town(RES, HOME);
+};
+window.meetOff = key => { Native.unplanMeet(key); loadPlans(); closeSheet(); toast('녹음 알림을 껐어요'); if (RES && HOME) town(RES, HOME); };
 function evLine(e){
   const now = Date.now(), t = e.allDay ? '하루 종일' : hm(e.begin) + '–' + hm(e.end);
-  return `<div class="evl${!e.allDay && e.begin <= now ? ' now' : ''}" onclick="Native.openEvent('${e.id}','${e.begin}','${e.end}')"><span class="tt">${t}</span><span class="nm">${esc(e.title || '(제목 없음)')}</span></div>`;
+  return `<div class="evl${!e.allDay && e.begin <= now ? ' now' : ''}" onclick="Native.openEvent('${e.id}','${e.begin}','${e.end}')"><span class="tt">${t}</span><span class="nm">${esc(e.title || '(제목 없음)')}</span>${e.allDay ? '' : micBtn(e.id, e.begin, e.end, e.title)}</div>`;
 }
 window.openToday = () => { if (has('업무') && gate('업무', openToday)) return; const s = sheet(todayCard(HOME, RES) + TAIL); s.id = 'todaySheet'; };
 window.soon = w => toast(w + '는 다음 단계에 붙여요');
@@ -817,6 +850,7 @@ function fitBubbles(){
   });
 }
 function town(res, h){
+  loadPlans();
   const cl = Math.floor(res.charShown), cp = res.charShown - cl;
   const got = a => res.areas[a].todayItems ? `<span class="got">${res.areas[a].todayXp ? '+'+res.areas[a].todayXp : '✓'}</span>` : '';
   const hh = h.health;
@@ -919,7 +953,7 @@ function todayCard(h, res){
   rows.sort((a,b) => a.sort - b.sort);
   const nowMin = (() => { const d = new Date(Date.now() + 9*3600e3); return d.getUTCHours()*60 + d.getUTCMinutes(); })();
   const line = r => r.kind === 'event'
-    ? `<div class="trow ev${r.faded?' faded':''}" onclick="Native.openEvent('${r.id}','${r.begin}','${r.end}')"><span class="tm">${r.time}</span><span class="evbar"></span><div class="tx">${esc(r.title)}${r.sub?`<div class="small mute">${r.sub}</div>`:''}</div></div>`
+    ? `<div class="trow ev${r.faded?' faded':''}" onclick="Native.openEvent('${r.id}','${r.begin}','${r.end}')"><span class="tm">${r.time}</span><span class="evbar"></span><div class="tx">${esc(r.title)}${r.sub?`<div class="small mute">${r.sub}</div>`:''}</div>${r.faded || r.time === '하루' ? '' : micBtn(r.id, r.begin, r.end, r.title)}</div>`
     : `<div class="trow"><span class="tm${r.late?' red':''}">${r.time||''}</span><button class="ck" onclick="doneTask('${r.id}', ${r.mine})" aria-label="완료"></button><div class="tx">${esc(r.title)}${r.sub||r.company?`<div class="small ${r.late?'red':'mute'}">${[r.sub, r.company].filter(Boolean).map(esc).join(' · ')}</div>`:''}</div></div>`;
   let body = '', placed = false; const timed = rows.some(r => r.sort >= 0);
   for (const r of rows) { if (timed && !placed && r.sort > nowMin) { body += '<div class="nowline"><span>지금</span></div>'; placed = true; } body += line(r); }

@@ -527,6 +527,12 @@ public class MainActivity extends Activity {
                 return a == null ? "" : new org.json.JSONObject(a).optString("stage", "");
             } catch (Exception e) { return ""; }
         }
+        // 일정 줄 🎙: 녹음 알림 걸기·끄기(폰 안에만, 내용은 workkit Meet)
+        @JavascriptInterface public String meetPlans() { return app.recordkit.work.MeetReceiver.plans(getApplicationContext()); }
+        @JavascriptInterface public void planMeet(String key, String title, String start, String end) {
+            try { app.recordkit.work.MeetReceiver.plan(getApplicationContext(), key, title, Long.parseLong(start), Long.parseLong(end)); } catch (Exception ignored) {}
+        }
+        @JavascriptInterface public void unplanMeet(String key) { app.recordkit.work.MeetReceiver.unplan(getApplicationContext(), key); }
         @JavascriptInterface public void openMeet() {
             open(new Intent(MainActivity.this, WorkApp.Meet.class).putExtra("mode", meetStage().isEmpty() ? "now" : "done"));
         }
