@@ -519,6 +519,18 @@ public class MainActivity extends Activity {
         // 업무 기록 화면(요청받은 일·확인·새 할 일) = 업무 기록 앱 그 자체(WorkApp.Screen)
         @JavascriptInterface public void openTodo() { open(WorkApp.screen(MainActivity.this, false)); }
 
+        // 사무실 🎙 말풍선(2026-11-19 룡 「홈 화면 위젯은 안 쓴다, 라이프 RPG 하나만」): 갑자기 하는 미팅 녹음.
+        // 진행 중인 녹음이 없으면 「지금 녹음 시작」(15분 단위), 있으면 「녹음 끝내고 글 넣기」. 내용은 workkit MeetActivity
+        @JavascriptInterface public String meetStage() {
+            try {
+                String a = getSharedPreferences("todohub-meet", MODE_PRIVATE).getString("active", null);
+                return a == null ? "" : new org.json.JSONObject(a).optString("stage", "");
+            } catch (Exception e) { return ""; }
+        }
+        @JavascriptInterface public void openMeet() {
+            open(new Intent(MainActivity.this, WorkApp.Meet.class).putExtra("mode", meetStage().isEmpty() ? "now" : "done"));
+        }
+
         // 아빠 집: 영성 기록을 연다(2026-11-16부터 이 앱 안의 영성 기록 화면). 다른 앱은 그 앱(없으면 사이트)
         @JavascriptInterface public void openApp(String pkg, String url) {
             if (app.recordkit.spirit.Spirit.STANDALONE.equals(pkg)) { open(SpiritApp.screen(MainActivity.this, null)); return; }
