@@ -68,22 +68,8 @@
             </intent-filter>
         </activity>
 
-        <!-- 홈 화면 위젯 -->
-        <receiver android:name=".Widget" android:exported="false">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_info" />
-        </receiver>
-
-        <!-- 위젯 목록(오늘 일정 + 할 일) -->
-        <service android:name=".TodayService" android:exported="false"
-            android:permission="android.permission.BIND_REMOTEVIEWS" />
-
-        <!-- 위젯을 눌렀을 때: 완료 확인 창 · 캘린더 · 업무 기록 -->
-        <activity android:name=".WidgetAction" android:exported="false"
-            android:theme="@style/Clear" android:excludeFromRecents="true"
-            android:taskAffinity="app.liferpg.action" android:noHistory="true" />
+        <!-- 홈 화면 위젯(Lv·오늘 일정·할 일)은 없앴다(2026-11-19 룡 「잠금화면 앞에 마을이 있으니 안 써」). 놓아 둔 위젯은 빈 칸이 되니 길게 눌러 지운다.
+             Widget·TodayService·WidgetAction 코드는 남겨 둔다(지갑 빠른 기록 창을 여는 길 Widget.walletIntent를 마을이 쓴다) -->
 
         <!-- 밤 9시 30분 알림 · 재부팅·업데이트 뒤 다시 걸기 -->
         <receiver android:name=".Daily" android:exported="false">
