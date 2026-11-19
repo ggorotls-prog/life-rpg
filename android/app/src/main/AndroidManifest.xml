@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- 서버(rpg_ 함수)·새 버전 확인 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -303,5 +304,10 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/rpg_files" />
         </provider>
+        <!-- 은행·카드 알림 읽기(finkit)의 이름만 바꾼다(2026-11-19 룡): 폰 「알림 읽기」 목록에서 재정 기록 단독 앱과 이름이 같아 다른 앱 것을 켜기 쉬웠다 -->
+        <service
+            android:name="app.recordkit.fin.FinNotice"
+            android:label="라이프 RPG · 은행·카드 알림 → 기록할까요?"
+            tools:replace="android:label" />
     </application>
 </manifest>

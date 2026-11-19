@@ -115,7 +115,7 @@ final class Perms {
             case "battery": return "「허용」을 눌러 주세요";
             case "overlay": return "「라이프 RPG」를 켜고 뒤로 오세요";
             case "restricted": return "오른쪽 위 ⋮ → 「제한된 설정 허용」을 누르고 뒤로 오세요";
-            case "finNotice": return "「재정 기록 (은행·카드 알림…)」을 켜고 뒤로 오세요";
+            case "finNotice": return "「라이프 RPG · 은행·카드 알림」을 켜고 뒤로 오세요";
             case "sleepLock": return "「설치된 앱」 → 「라이프 RPG 취침 잠금」을 켜고 뒤로 오세요";
             default: return "「권한」에서 허용하고 뒤로 오세요";
         }

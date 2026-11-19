@@ -354,6 +354,7 @@ async function load(){
     if (gd && !gd.failed && !GENDER && !ASKED && !document.querySelector('.sheet')) { ASKED = true; askGender(); return; }
     // 첫 로그인 뒤 한 번: 켜야 할 것(알림·캘린더·배터리·위젯)
     if (!ls.get('rpg_setup_seen', false) && !document.querySelector('.sheet')) setupView();
+    else if (!document.querySelector('.sheet')) permDrop();
   } catch(e) {
     if (e && e.body && (e.body.message === 'auth' || e.body === 'auth')) { setToken(''); return loginView(); }
     if (!RES) document.getElementById('app').innerHTML = `<div class="card">불러오지 못했어요.<br>${esc(errMsg(e))}<br><br><button onclick="load()">다시</button></div>`;
@@ -632,6 +633,13 @@ window.gate = (pack, go) => {
   if (ls.get('rpg_gate_skip_' + pack, false)) return false;
   if (!perms([pack]).some(p => !p.on && p.pack === pack)) return false;
   setupView(pack, go); return true; };
+// 켜져 있던 것이 꺼지면 그 기록을 한 번 더 안내한다(2026-11-19 룡: 단독 기록 앱을 지우자 그 앱이 켠 알림 읽기가 같이 사라져 「기록할까요?」가 안 뜸).
+// 단독 앱이 깔려 있으면 그 앱이 켠 것도 켜짐으로 세므로(Perms), 단독 앱을 지우는 순간 꺼짐으로 바뀐다. 한 번만 띄우고 「안 켜고 쓰기」는 다시 고를 수 있다.
+const permDrop = () => { for (const pack of myPacks()) {
+  const mine = perms([pack]).filter(p => p.pack === pack); if (!mine.length) continue;
+  const ok = mine.every(p => p.on), was = ls.get('rpg_perm_ok_' + pack, null);
+  ls.set('rpg_perm_ok_' + pack, ok);
+  if (was === true && !ok) { ls.set('rpg_gate_skip_' + pack, false); setupView(pack); return; } } };
 window.gateOff = pack => { ls.set('rpg_gate_skip_' + pack, true); closeSheet(); const f = window._gateGo; window._gateGo = null; if (f) f(); };
 window.setupView = (pack, go) => {
   window._gateGo = go || null;
