@@ -67,6 +67,8 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- 앱 아이콘 길게 누르기·원핸드(One hand) 「바로가기」에 뜨는 「할 일 적기」(2026-11-19 룡, 업무 기록 앱과 같은 방식) -->
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
 
         <!-- 홈 화면 위젯(Lv·오늘 일정·할 일)은 없앴다(2026-11-19 룡 「잠금화면 앞에 마을이 있으니 안 써」). 놓아 둔 위젯은 빈 칸이 되니 길게 눌러 지운다.
@@ -166,6 +168,14 @@
             android:label="할 일 적기"
             android:excludeFromRecents="true"
             android:taskAffinity=""
+            android:windowSoftInputMode="stateAlwaysVisible|adjustResize"
+            android:theme="@style/WorkQuickAdd" />
+        <!-- 잠금화면 앞 마을의 ＋ 수집 말풍선(2026-11-19): 같은 적기 창을 잠금 위에. 사진 없이 적기만 -->
+        <activity
+            android:name=".WorkApp$LockQuick"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
             android:windowSoftInputMode="stateAlwaysVisible|adjustResize"
             android:theme="@style/WorkQuickAdd" />
         <activity

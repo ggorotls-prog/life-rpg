@@ -26,6 +26,55 @@ public final class WorkApp {
 
     /** ＋ 할 일 적기 작은 창(One hand에서도 바로 열게 exported) */
     public static class Quick extends app.recordkit.work.QuickAddActivity {}
+
+    /** 잠금화면 앞 마을의 ＋ 수집 말풍선(2026-11-19 룡 「잠금 안 풀고 적기」): 같은 적기 창을 잠금 위에 띄운다.
+     *  잠금 위에서는 적기만: 📷 사진(갤러리가 열림)은 숨기고, 다른 화면(업무 기록 로그인 등)은 열지 않는다. 목록은 잠금을 풀어야 보인다 */
+    public static class LockQuick extends app.recordkit.work.QuickAddActivity {
+        @Override
+        protected void onCreate(android.os.Bundle b) {
+            setShowWhenLocked(true);
+            super.onCreate(b);
+            hidePhoto(getWindow().getDecorView());
+        }
+
+        private boolean locked() {
+            android.app.KeyguardManager k = getSystemService(android.app.KeyguardManager.class);
+            return k != null && k.isKeyguardLocked();
+        }
+
+        // 잠금 중에는 다른 화면(로그인·사진 고르기)을 열지 않는다. startActivity도 결국 이 길을 지난다
+        @Override
+        public void startActivityForResult(android.content.Intent i, int code, android.os.Bundle opts) {
+            if (locked()) {
+                android.widget.Toast.makeText(this, "잠금을 풀고 업무 기록에서 해 주세요", android.widget.Toast.LENGTH_LONG).show();
+                return;
+            }
+            super.startActivityForResult(i, code, opts);
+        }
+
+        // 적기 줄의 📷 칸과 그 앞 나눔 줄을 숨긴다(원본 적기 창은 그대로)
+        private static boolean hidePhoto(android.view.View v) {
+            if ("사진 넣기".contentEquals(String.valueOf(v.getContentDescription()))) {
+                v.setVisibility(android.view.View.GONE);
+                if (v.getParent() instanceof android.view.ViewGroup) {
+                    android.view.ViewGroup p = (android.view.ViewGroup) v.getParent();
+                    int at = p.indexOfChild(v);
+                    if (at > 0) p.getChildAt(at - 1).setVisibility(android.view.View.GONE);
+                }
+                return true;
+            }
+            if (v instanceof android.view.ViewGroup) {
+                android.view.ViewGroup g = (android.view.ViewGroup) v;
+                for (int n = 0; n < g.getChildCount(); n++) if (hidePhoto(g.getChildAt(n))) return true;
+            }
+            return false;
+        }
+    }
+
+    /** 잠금 위 적기 창: 마을과 같은 묶음에 쌓아(새 묶음 아님) 닫으면 바로 잠금 위 마을로 돌아온다 */
+    static android.content.Intent lockQuick(Context c) {
+        return new android.content.Intent(c, LockQuick.class).addFlags(android.content.Intent.FLAG_ACTIVITY_NO_ANIMATION);
+    }
     public static class Confirm extends app.recordkit.work.ConfirmDoneActivity {}
     /** 「내 할 일」 위젯 */
     public static class TaskWidget extends app.recordkit.work.TaskWidget {}

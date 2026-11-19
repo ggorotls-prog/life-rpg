@@ -26,7 +26,7 @@ public class MainActivity extends Activity {
     // 잠금화면 앞에 마을(LockFront): 잠금을 안 푼 동안 화면을 덮어 누름을 받는 판, 잠금이 풀렸는지 듣는 귀
     private android.widget.FrameLayout root;
     private View lockCover;
-    private boolean lockMode;
+    private volatile boolean lockMode;   // 웹 다리 줄(todoAdd·open)에서도 읽는다
     // 📱 한 번에 켜기(Perms): 아직 열어 볼 것들 · 지금 설정 화면에 가 있는 것
     private final java.util.ArrayList<String> permQueue = new java.util.ArrayList<>();
     private String permWaiting;
@@ -137,7 +137,14 @@ public class MainActivity extends Activity {
             web.setFocusable(false);
             web.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         }
-        android.widget.FrameLayout cover = new android.widget.FrameLayout(this);
+        // ＋ 수집 말풍선 자리만 구멍(2026-11-19 룡 「잠금 안 풀고 적기」): 그 자리를 누르면 판이 받지 않아 아래 마을의 말풍선이 눌린다
+        android.widget.FrameLayout cover = new android.widget.FrameLayout(this) {
+            @Override
+            public boolean dispatchTouchEvent(android.view.MotionEvent e) {
+                if (e.getActionMasked() == android.view.MotionEvent.ACTION_DOWN && inHole(e.getX() + getLeft(), e.getY() + getTop())) return false;
+                return super.dispatchTouchEvent(e);
+            }
+        };
         android.widget.TextView hint = new android.widget.TextView(this);
         hint.setText("🔒 누르면 잠금 풀기");
         hint.setTextSize(13);
@@ -162,6 +169,17 @@ public class MainActivity extends Activity {
         lockCover = cover;
         root.addView(cover, new android.widget.FrameLayout.LayoutParams(-1, -1));
         try { registerReceiver(unlocked, new android.content.IntentFilter(Intent.ACTION_USER_PRESENT)); } catch (Exception ignored) {}
+    }
+
+    private volatile double[] lockHole;   // ＋ 수집 말풍선 자리 {왼, 위, 오른, 아래, 웹 화면 폭} (CSS 좌표)
+
+    // root 안의 (x, y)가 말풍선 자리인가. 판과 웹 화면은 같은 root에 겹쳐 있다. 여유는 두지 않는다(옆 사무실·🎙이 눌리지 않게)
+    private boolean inHole(float x, float y) {
+        double[] h = lockHole;
+        if (h == null || web == null || web.getWidth() == 0 || h[2] <= h[0] || h[3] <= h[1]) return false;
+        double k = web.getWidth() / h[4], pad = 0;
+        double wx = x - web.getLeft(), wy = y - web.getTop();
+        return wx >= h[0] * k - pad && wx <= h[2] * k + pad && wy >= h[1] * k - pad && wy <= h[3] * k + pad;
     }
 
     private void exitLock() {
@@ -510,7 +528,12 @@ public class MainActivity extends Activity {
 
         // 업무 기록의 ＋ 할 일 적기 창 / 맡기기 창(업무 기록 위젯과 같은 창)
         // 업무 기록의 ＋ 할 일 적기 창 / 맡기기 창 = 업무 기록 위젯과 같은 창. 2026-11-16부터 이 앱 안의 같은 창(원본 한 벌 workkit)
-        @JavascriptInterface public void todoAdd() { open(WorkApp.quick(MainActivity.this)); }
+        // 잠금화면 앞 마을이면 잠금 위 적기 창(사진 없이 적기만, 2026-11-19 룡)
+        @JavascriptInterface public void todoAdd() { open(lockMode ? WorkApp.lockQuick(MainActivity.this) : WorkApp.quick(MainActivity.this)); }
+        // ＋ 수집 말풍선 자리(웹 화면 기준 CSS 좌표). 잠금 판은 이 자리만 눌림을 아래 마을로 흘려보낸다
+        @JavascriptInterface public void lockHole(double l, double t, double r, double b, double vw) {
+            lockHole = vw > 0 ? new double[]{l, t, r, b, vw} : null;
+        }
         @JavascriptInterface public void todoAssign() { open(WorkApp.screen(MainActivity.this, true)); }
 
         // 👥 이웃 = 관계 기록 앱 그 자체(RelApp.Screen, 2026-11-16)
@@ -553,6 +576,8 @@ public class MainActivity extends Activity {
     }
 
     private void open(Intent i) {
+        // 잠금 위 마을에서는 ＋ 수집 적기 창만 연다(구멍 가장자리·잠금 중 뜬 창으로 다른 화면이 잠금 뒤에 열리지 않게, 2026-11-19 검토)
+        if (lockMode && (i.getComponent() == null || !WorkApp.LockQuick.class.getName().equals(i.getComponent().getClassName()))) return;
         runOnUiThread(() -> {
             try { startActivity(i); } catch (Exception e) { try { startActivity(new Intent(Settings.ACTION_SETTINGS)); } catch (Exception ignored) {} }
         });

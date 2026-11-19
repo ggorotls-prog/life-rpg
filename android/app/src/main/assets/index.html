@@ -110,6 +110,7 @@ select{width:100%;font:inherit;padding:11px;border:1px solid var(--line);border-
 .bub::after{content:'';position:absolute;left:var(--t,14px);bottom:-9px;border:6px solid transparent;border-top:10px solid #fff;border-bottom:0;filter:drop-shadow(0 2px 1px rgba(0,0,0,.12))}
 .bub b{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:20px;background:#f4f6fa;font-size:22px;font-weight:800;color:var(--brand);line-height:1}
 .bub b.out{color:#1F6F54}.bub b.in{color:#1B62B5}
+.bub.l{transform:translate(calc(-100% + 14px),-100%)}.bub.l::after{left:auto;right:var(--t,14px)}
 .spot .lb .warn{color:#c8553d;font-weight:700}
 /* 마을 건물에는 ✓를 안 띄운다(2026-11-16 룡 「아예 체크를 없애줘, 굳이?」). 이름표 아래 작은 글(오늘 한 것)만 */
 .me{position:absolute;left:50%;top:66%;transform:translate(-50%,-50%);font-size:44px;animation:bob 2.4s ease-in-out infinite;pointer-events:none}
@@ -852,8 +853,10 @@ function meetBub(N){
   let st = ''; try { st = N.meetStage ? N.meetStage() : ''; } catch(e) {}
   return `<b onclick="Native.openMeet()">${st === 'rec' ? '⏹' : st === 'write' ? '📝' : '🎙'}</b>`;
 }
+window.addEventListener('resize', () => requestAnimationFrame(fitBubbles));   // 돌리기·화면 크기가 바뀌면 말풍선 자리(잠금 판 구멍)도 다시
 function fitBubbles(){
-  const W = document.getElementById('world'); if (!W) return;
+  const W = document.getElementById('world');
+  if (!W) { try { window.Native && Native.lockHole && Native.lockHole(0, 0, 0, 0, 0); } catch (e) {} return; }   // 마을이 없으면(로그인 화면) 잠금 판 구멍도 없앤다
   const wr = W.getBoundingClientRect();
   W.querySelectorAll('.spot.tag').forEach(b => {
     b.style.marginLeft = '0px';
@@ -864,7 +867,13 @@ function fitBubbles(){
     b.style.marginLeft = '0px'; b.style.removeProperty('--t');
     const r = b.getBoundingClientRect(), over = r.right - (Math.min(wr.right, window.innerWidth) - 6);
     if (over > 0) { b.style.marginLeft = -over + 'px'; b.style.setProperty('--t', Math.min(14 + over, r.width - 24) + 'px'); }
+    // 왼쪽 말풍선이 화면 왼쪽 밖으로 나가면 안으로(꼬리는 건물 쪽에 그대로)
+    const under = Math.max(wr.left, 0) + 6 - r.left;
+    if (b.classList.contains('l') && under > 0) { b.style.marginLeft = under + 'px'; b.style.setProperty('--t', Math.min(14 + under, r.width - 24) + 'px'); }
   });
+  // 잠금화면 앞 마을: ＋ 수집 말풍선 자리를 앱에 알려 그 자리만 잠금 판을 뚫는다
+  const N = window.Native, q = document.getElementById('qbub');
+  if (N && N.lockHole) { try { if (q) { const r = q.getBoundingClientRect(); N.lockHole(r.left, r.top, r.right, r.bottom, window.innerWidth); } else N.lockHole(0, 0, 0, 0, 0); } catch (e) {} }
 }
 function town(res, h){
   loadPlans();
@@ -888,6 +897,8 @@ function town(res, h){
   // 말풍선: 늘 건물 그림 오른쪽 위 모서리(2026-11-18·19 룡 「항상 건물그림 오른쪽 위, 꼭 말풍선처럼」, 건물은 사각형).
   // (rx, ty) = 그 건물 사각형의 오른쪽 끝·윗변(마을 그림 좌표 400×800). 화면 밖으로 나가면 fitBubbles가 안으로 당긴다
   const bubble = (rx, ty, html) => `<div class="bub" style="left:${(rx - 6) / 4}%;top:${(ty + 6) / 8}%">${html}</div>`;
+  // 왼쪽 위 말풍선(lx = 건물 사각형 왼쪽 끝). 사무실 ＋ 수집(2026-11-19 룡 「사무실 왼쪽에 수집추가 말풍선, 잠금화면에서도」)
+  const bubbleL = (lx, ty, html, id) => `<div class="bub l"${id ? ` id="${id}"` : ''} style="left:${(lx + 6) / 4}%;top:${(ty + 6) / 8}%">${html}</div>`;
   // 👛 금고: 은행·카드 알림에서 온 「안 적은 것」 수(폰 안, 재정 위젯의 빨간 표와 같은 수)
   let finPend = 0; try { finPend = N.finPending ? N.finPending() : 0; } catch(e) {}
   // 신청한 기록이 승인을 기다리면 마을 위에 늘 보인다(2026-11-17). 연 기록이 하나도 없으면 더하는 길을 알려 준다
@@ -901,7 +912,7 @@ function town(res, h){
       ${has('영성') ? spot([179, 274, 251, 360], 'openFather()', '영성', '아빠 집', sp.length ? sp.join('·') : '아직') + bubble(251, 274, `<b onclick="openFwNow()">＋</b>`) : ''}
       ${has('건강') ? spot([51, 378, 139, 458], 'openHome()', '건강', '집', homeSt) : ''}
       ${has('재정') ? spot([264, 476, 362, 548], 'openLedger()', '재정', '금고', (finPend ? `<span class="warn">안 적은 것 ${finPend}</span>` : h.fin_today ? '오늘 '+h.fin_today+'건' : '돈 썼을 때')) + bubble(362, 476, `<b class="in" onclick="openWalletKind('수입')">＋</b><b class="out" onclick="openWalletKind('지출')">−</b>`) : ''}
-      ${has('업무') && N.openTodo ? spot([32, 551, 102, 625], 'Native.openTodo()', null, '사무실', '할 일') + (N.openMeet ? bubble(102, 551, meetBub(N)) : '') : ''}
+      ${has('업무') && N.openTodo ? spot([32, 551, 102, 625], 'Native.openTodo()', null, '사무실', '할 일') + (N.openMeet ? bubble(102, 551, meetBub(N)) : '') + (N.todoAdd ? bubbleL(32, 551, `<b onclick="Native.todoAdd()" aria-label="할 일 적기">＋</b>`, 'qbub') : '') : ''}
       ${has('관계') ? spot([340, 378, 394, 432], 'openRel()', '관계', '이웃', '통화·메모', true) : ''}
       <div class="me">${meEmoji()}</div></div>
     <div class="hud top">
@@ -1390,7 +1401,7 @@ function openDiary(){
 }
 window.onNative = ev => {
   // 잠금화면 위에 뜰 때: 열려 있던 창을 다 닫고 마을로(잠금을 안 푼 사람에게 적던 글·보고서가 보이지 않게)
-  if (ev === 'lock') { document.querySelectorAll('.sheet,.ov').forEach(x => x.remove()); try { if (CUR !== 'town' && document.getElementById('nav').style.display !== 'none') tab('town'); } catch (e) {} return; }
+  if (ev === 'lock') { document.querySelectorAll('.sheet,.ov').forEach(x => x.remove()); try { if (CUR !== 'town' && document.getElementById('nav').style.display !== 'none') tab('town'); } catch (e) {} requestAnimationFrame(fitBubbles); return; }
   if (ev === 'resume') { load(); const ss = document.getElementById('setupSheet'); if (ss) setupView(ss.dataset.pack, window._gateGo); return; }
   // 한 번에 켜기가 끝남: 다시 그리고, 다 켜졌으면 알린다
   if (ev === 'perms') { const ss = document.getElementById('setupSheet'); const pk = ss ? ss.dataset.pack : '', go = window._gateGo;

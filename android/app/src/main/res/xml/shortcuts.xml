@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 앱 아이콘을 길게 누르면 나오는 「할 일 적기」. 원핸드(One hand) 「바로가기」 목록에도 이 이름으로 뜬다(2026-11-19 룡) -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="write"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/write_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="app.liferpg"
+            android:targetClass="app.liferpg.WorkApp$Quick">
+        </intent>
+    </shortcut>
+</shortcuts>
