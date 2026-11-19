@@ -11,3 +11,8 @@ android/local.properties
 
 # 기록 앱 폰 기능 원본(빌드 때 받아 씀, 저장소에 안 올림)
 android/ext/
+# 비밀 파일 (2026-11-19 보안 점검)
+.env
+.env.*
+*.jks
+*.keystore
