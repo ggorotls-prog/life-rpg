@@ -98,6 +98,9 @@ select{width:100%;font:inherit;padding:11px;border:1px solid var(--line);border-
 #world svg{position:absolute;inset:0;width:100%;height:100%}
 .spot{position:absolute;transform:translate(-50%,-50%);text-align:center;cursor:pointer}
 .spot .hit{margin:0 auto}
+/* 이름표는 건물 그림 바로 아래(2026-11-19 룡 「건물이랑 안 겹치게, 너무 내리지 말고」). 누르는 칸 = 건물 사각형 */
+.spot.tag{transform:translateX(-50%)}.spot.tag .lb{margin-top:0}
+.bhit{position:absolute;cursor:pointer}
 .spot .lb{display:inline-block;margin-top:2px;background:rgba(255,255,255,.93);border-radius:10px;padding:3px 9px;font-size:13px;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.15);white-space:nowrap}
 .spot .lb small{display:block;font-weight:500;color:var(--mute);font-size:11px}
 /* 건물 옆 말풍선 버튼(2026-11-18 룡 「말풍선이나 건물 옆에 띄우는 버튼으로 가볍게」): 생각났을 때 바로 적는 길 */
@@ -797,6 +800,11 @@ window.openRel = () => { if (gate('관계', openRel)) return; const N = window.N
 function fitBubbles(){
   const W = document.getElementById('world'); if (!W) return;
   const wr = W.getBoundingClientRect();
+  W.querySelectorAll('.spot.tag').forEach(b => {
+    b.style.marginLeft = '0px';
+    const r = b.getBoundingClientRect(), R = Math.min(W.getBoundingClientRect().right, window.innerWidth) - 4, L = Math.max(W.getBoundingClientRect().left, 0) + 4;
+    if (r.right > R) b.style.marginLeft = (R - r.right) + 'px'; else if (r.left < L) b.style.marginLeft = (L - r.left) + 'px';
+  });
   W.querySelectorAll('.bub').forEach(b => {
     b.style.marginLeft = '0px'; b.style.removeProperty('--t');
     const r = b.getBoundingClientRect(), over = r.right - (Math.min(wr.right, window.innerWidth) - 6);
@@ -818,7 +826,9 @@ function town(res, h){
     : ev.length ? ev.map(evLine).join('') : `<div class="evl"><span class="nm mute">📅 남은 일정 없음</span></div>`;
   // bub = 건물 위에 띄우는 말풍선 버튼들(html). 누르면 건물은 안 눌리게 막는다
   // 말풍선은 이름표 옆(side 'r' 오른쪽 · 'l' 왼쪽)에 띄운다. 건물 그림과 누르는 칸의 자리는 그대로
-  const spot = (x, y, w, hgt, onc, area, name, st) => `<div class="spot" style="left:${x}%;top:${y}%" onclick="${onc}"><div class="hit" style="width:${w}px;height:${hgt}px;margin-top:-${hgt-30}px"></div><div class="lbw"><div class="lb">${name}<small>${st}</small></div></div></div>`;
+  // r = 건물 사각형 [왼, 위, 오른, 아래](마을 그림 좌표 400×800). 누르는 칸은 그 사각형, 이름표는 그 바로 아래 가운데
+  // up = 이름표를 위에(이웃 나무: 아래는 금고 말풍선 자리)
+  const spot = (r, onc, area, name, st, up) => `<div class="bhit" style="left:${r[0]/4}%;top:${r[1]/8}%;width:${(r[2]-r[0])/4}%;height:${(r[3]-r[1])/8}%" onclick="${onc}"></div><div class="spot tag" style="left:${(r[0]+r[2])/8}%;top:${up ? (r[1]-3)/8 : (r[3]+3)/8}%${up ? ';transform:translate(-50%,-100%)' : ''}" onclick="${onc}"><div class="lbw"><div class="lb">${name}<small>${st}</small></div></div></div>`;
   // 말풍선: 늘 건물 그림 오른쪽 위 모서리(2026-11-18·19 룡 「항상 건물그림 오른쪽 위, 꼭 말풍선처럼」, 건물은 사각형).
   // (rx, ty) = 그 건물 사각형의 오른쪽 끝·윗변(마을 그림 좌표 400×800). 화면 밖으로 나가면 fitBubbles가 안으로 당긴다
   const bubble = (rx, ty, html) => `<div class="bub" style="left:${(rx - 6) / 4}%;top:${(ty + 6) / 8}%">${html}</div>`;
@@ -832,11 +842,11 @@ function town(res, h){
   const todayN = (h.tasks || []).filter(t => t.requester !== h.name || (t.due && t.due <= h.today) || ((t.remind||'').slice(0,10) && (t.remind||'').slice(0,10) <= h.today)).length;
   document.getElementById('town').innerHTML = `
     <div id="world">${SCENE}
-      ${has('영성') ? spot(54, 38, 90, 110, 'openFather()', '영성', '아빠 집', sp.length ? sp.join('·') : '아직') + bubble(251, 274, `<b onclick="openFwNow()">＋</b>`) : ''}
-      ${has('건강') ? spot(24, 57, 96, 96, 'openHome()', '건강', '집', homeSt) : ''}
-      ${has('재정') ? spot(78, 68, 96, 80, 'openLedger()', '재정', '금고', (finPend ? `<span class="warn">안 적은 것 ${finPend}</span>` : h.fin_today ? '오늘 '+h.fin_today+'건' : '돈 썼을 때')) + bubble(362, 476, `<b class="in" onclick="openWalletKind('수입')">＋</b><b class="out" onclick="openWalletKind('지출')">−</b>`) : ''}
-      ${has('업무') && N.openTodo ? spot(16.5, 76, 80, 60, 'Native.openTodo()', null, '사무실', '할 일') : ''}
-      ${has('관계') ? spot(82, 44, 80, 70, 'openRel()', '관계', '이웃', '통화·메모') : ''}
+      ${has('영성') ? spot([179, 274, 251, 360], 'openFather()', '영성', '아빠 집', sp.length ? sp.join('·') : '아직') + bubble(251, 274, `<b onclick="openFwNow()">＋</b>`) : ''}
+      ${has('건강') ? spot([51, 408, 139, 488], 'openHome()', '건강', '집', homeSt) : ''}
+      ${has('재정') ? spot([264, 476, 362, 548], 'openLedger()', '재정', '금고', (finPend ? `<span class="warn">안 적은 것 ${finPend}</span>` : h.fin_today ? '오늘 '+h.fin_today+'건' : '돈 썼을 때')) + bubble(362, 476, `<b class="in" onclick="openWalletKind('수입')">＋</b><b class="out" onclick="openWalletKind('지출')">−</b>`) : ''}
+      ${has('업무') && N.openTodo ? spot([32, 551, 102, 625], 'Native.openTodo()', null, '사무실', '할 일') : ''}
+      ${has('관계') ? spot([340, 378, 394, 432], 'openRel()', '관계', '이웃', '통화·메모', true) : ''}
       <div class="me">${meEmoji()}</div></div>
     <div class="hud top">
       <div class="glass lvb"><b>Lv ${cl}</b><div class="bar"><i style="width:${Math.round(cp*100)}%"></i></div>${ME && ME.pending ? `<span onclick="openJoins()" style="margin-left:auto;background:#c8553d;color:#fff;border-radius:10px;padding:2px 8px;font-size:12px">📮 신청 ${ME.pending}</span>` : ''}<span onclick="openMenu()" style="margin-left:${ME && ME.pending ? '8px' : 'auto'};font-size:22px;line-height:1;padding:2px 6px;cursor:pointer">☰</span></div>
