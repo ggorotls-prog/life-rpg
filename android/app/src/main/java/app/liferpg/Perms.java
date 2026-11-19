@@ -32,7 +32,7 @@ final class Perms {
             new Item("calendar", "업무", "📅 캘린더 보기", "폰 캘린더의 오늘 일정(제목·시간)을 읽어 마을과 「오늘」에 보여 줘요. 안 켜도 할 일은 쓸 수 있어요", Manifest.permission.READ_CALENDAR),
             new Item("phone", "관계", "📞 통화가 끝났는지 알기", "통화가 끝난 때를 알아 누구와 했는지 물어요. 안 켜도 사람·메모 기록은 쓸 수 있어요", Manifest.permission.READ_PHONE_STATE),
             new Item("calllog", "관계", "📞 통화 기록 읽기", "번호·방향·시각·길이를 읽어요. 녹음·통화 내용은 안 읽어요. 안 켜도 사람·메모 기록은 쓸 수 있어요", Manifest.permission.READ_CALL_LOG),
-            new Item("contacts", "관계", "👤 연락처 읽기", "이름·번호를 읽어 이름을 보여 주고 뺄 번호를 골라요. 안 켜도 사람·메모 기록은 쓸 수 있어요", Manifest.permission.READ_CONTACTS),
+            new Item("contacts", "관계", "👤 연락처", "이름·번호를 읽어 이름을 보여 주고 뺄 번호를 골라요. 등록한 사람의 이름은 폰 연락처와 서로 맞춰요. 안 켜도 사람·메모 기록은 쓸 수 있어요", Manifest.permission.READ_CONTACTS),
             new Item("overlay", "관계", "🪟 다른 앱 위에 표시", "통화가 끝나면 작은 창으로 물어요. 안 켜면 알림으로 물어요", null),
             new Item("finNotice", "재정", "💳 은행·카드 알림 읽기", "은행·카드 알림에서 금액·종류·가게 이름만 읽어 「기록할까요?」를 물어요. 계좌번호·잔액은 저장하지 않아요. 안 켜도 손으로 장부를 쓸 수 있어요", null),
             new Item("sleepLock", "건강", "🌙 취침 잠금", "「잘게요」 뒤에 폰을 잠가요(접근성에서 켜요). 안 켜도 기상·운동·식단 기록은 쓸 수 있어요", null),

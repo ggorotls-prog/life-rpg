@@ -30,6 +30,8 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.READ_CALL_LOG" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- 이름 맞추기(2026-11-20, relkit Names): 등록한 사람의 이름을 폰 연락처와 서로 맞춘다(이름 바꾸기·새 연락처. 지우는 일은 없음) -->
+    <uses-permission android:name="android.permission.WRITE_CONTACTS" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- 🏘 잠금화면 앞에 마을(2026-11-18): 화면 꺼짐을 지켜보는 늘 떠 있는 알림 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
