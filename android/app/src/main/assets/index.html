@@ -35,6 +35,19 @@ button.ghost{background:transparent;color:var(--mute);border:1px solid var(--lin
 .cons input,.chip input{width:20px;height:20px;margin:0;flex:none;accent-color:var(--brand)}
 .chip{display:inline-flex;gap:4px;align-items:center;border:1px solid var(--line);border-radius:16px;padding:6px 10px;font-size:14px;background:#fff}
 details summary{cursor:pointer;color:var(--brand)}
+.crow{display:flex;align-items:flex-start;gap:8px;padding:9px 0;border-bottom:1px solid var(--line)}
+.crow:last-child{border-bottom:0}
+.crow .cons{flex:1;margin:0}
+.crow .see{font-size:13px;color:var(--mute);white-space:nowrap;padding-top:1px;text-decoration:underline}
+.tg{font-size:12px;color:var(--mute);font-weight:700}.tg.req{color:var(--brand)}
+.sum{display:block;font-size:13px;color:var(--mute);margin-top:2px}.sum b{color:var(--ink)}
+.doc{position:fixed;inset:0;background:var(--bg);z-index:12;display:flex;flex-direction:column}
+.doc .dh{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--line);background:#fff}
+.doc .dh .x{width:auto;background:transparent;color:var(--mute);padding:4px 8px;font-size:18px}
+.doc .db{flex:1;overflow:auto;padding:8px 16px 24px;font-size:14px;line-height:1.7}
+.doc .db h4{margin:16px 0 2px;font-size:14px}.doc .db ul{margin:0;padding-left:20px}.doc .db p{margin:10px 0}
+.doc .df{padding:10px 16px 18px;border-top:1px solid var(--line);background:#fff}
+button:disabled{opacity:.4}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9;padding:24px}
 .ov .card{width:100%;max-width:360px;text-align:center}
 .big{font-size:44px;font-weight:800;color:var(--brand);margin:6px 0}
@@ -408,14 +421,16 @@ window.logout = () => { const t = token(); rpc('rpg_logout', {p_token: t}).catch
 // 로그아웃·탈퇴·로그인 풀림(2026-11-18): 그 사람 것을 모두 지운다 — 화면 변수, 이 폰에 둔 것, 위젯 요약, 앱 안 다른 기록 화면의 로그인.
 // 남기는 것: 가입 승인 기다리는 닉네임(rpg_wait)·적던 가입 신청(rpg_signup_draft) = 로그인 전 상태, 「켜야 할 것」을 봤는지(rpg_setup_seen) = 이 폰 설정
 function wipeMe(){
+  READ.clear();   // 읽은 약관 기억도 사람마다 새로(2026-11-20 프로그래머)
   setToken('');
   ME = null; HOME = null; RES = null; GENDER = null; ASKED = false; PENDING = null; CHANGED = false; LOOSE_OPEN = false; CUR = 'town';
   SP = null; BREAD = null; BOPEN = null; BROUNDS = 0; BSTART = null; BDONE = []; clearInterval(PTIMER);
   for (const k of ['rpg_last','rpg_seen','rpg_tab','rpg_bopen','rpg_pray_start','rpg_fw_kind']) { try { localStorage.removeItem(k); } catch(e) {} }
-  document.querySelectorAll('.sheet,.ov').forEach(x => x.remove());
+  document.querySelectorAll('.sheet,.ov,.doc').forEach(x => x.remove());
   try { window.Native && Native.wipe && Native.wipe(); } catch(e) {}
 }
 window.appBack = () => {
+  if (document.getElementById('docView')) { closeDoc(); return true; }   // 약관 전문이 열려 있으면 그것만 닫음
   if (document.getElementById('consentSheet')) return false;   // 동의 창은 뒤로 가기로 안 닫힘(앱만 나감). 동의하거나 로그아웃해야 닫힘
   if (document.querySelector('.sheet')) { closeSheet(); return true; }
   const o = document.querySelector('.ov'); if (o) { o.remove(); return true; }
@@ -454,28 +469,77 @@ const PACKS = [
    sens:'묵상·기도·일기처럼 <b>신앙에 관한 기록</b>을 저장하는 데 따로 동의해요.',
    what:'묵상·감사·칭찬·기도·일기에 적은 글, 통독한 장'},
   {k:'업무', icon:'🏢', b:'사무실', main:'할 일을 저장해서 내 캐릭터를 키워요.', what:'할 일 제목·메모·날짜',
-   keep:'다른 사람과 주고받은 할 일과 대화는 상대방 기록이기도 해서, 내 이름을 「탈퇴한 사람」으로 바꿔 남겨요'},
+   keep:'다른 사람과 주고받은 할 일과 대화는 상대방 기록이기도 해서, 내 이름을 「탈퇴한 사람」으로 바꿔 남겨요', keepS:'남과 주고받은 할 일·대화는 이름만 바꿔 남겨요'},
 ];
-const ck = (id, label, cls='') => `<label class="cons ${cls}"><input type="checkbox" id="${id}"><span>${label}</span></label>`;
 const eul = s => { const c = s.charCodeAt(s.length - 1); return c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 ? '을' : '를'; };   // 받침 따라 을·를(날짜를·장을)
-const det = html => `<details class="small mute" style="margin:2px 0 10px 28px"><summary>자세히</summary>${html}</details>`;
+// 동의 줄 (2026-11-20 룡 「동의창이 지저분하다. 자세한 약관은 스크롤로 읽고 체크하게」)
+// 줄 = [필수/선택] 한 줄 + 굵은 요약 한 줄(모으는 것·보관 기간, 늘 보임) + 「보기」. 전문을 끝까지 내려야 「동의해요」가 눌리고, 읽기 전에 체크하면 전문이 먼저 뜬다.
+const DOCS = {}, READ = new Set();
+const crow = (id, tag, title, sum, doc) => { if (doc) DOCS[id] = doc;
+  return `<div class="crow"><label class="cons"><input type="checkbox" id="${id}" onclick="return consTap(this)"><span><span class="tg ${tag === '필수' ? 'req' : ''}">[${tag}]</span> ${title}${sum ? `<span class="sum">${sum}</span>` : ''}</span></label>${doc ? `<a href="#" class="see" onclick="openDoc('${id}');return false">보기</a>` : ''}</div>`; };
+window.consTap = e => { if (!e.checked || READ.has(e.id) || !DOCS[e.id]) return true; openDoc(e.id); return false; };
+window.openDoc = (id, after) => {
+  const d = DOCS[id]; if (!d) return; closeDoc();
+  const o = document.createElement('div'); o.className = 'doc'; o.id = 'docView';
+  o.innerHTML = `<div class="dh"><b>${d.t}</b><button class="x" onclick="closeDoc()">✕</button></div><div class="db" id="docBody">${d.h}</div>
+    <div class="df"><div class="small mute" id="docHint" style="text-align:center;margin-bottom:6px">끝까지 내리면 동의할 수 있어요</div><button id="docOk" disabled>동의해요</button></div>`;
+  document.body.appendChild(o);
+  const b = o.querySelector('#docBody'), ok = o.querySelector('#docOk');
+  const chk = () => { if (b.scrollTop + b.clientHeight >= b.scrollHeight - 8) { ok.disabled = false; o.querySelector('#docHint').textContent = '다 읽었어요'; } };
+  b.onscroll = chk; setTimeout(chk, 60);
+  if (window.ResizeObserver) new ResizeObserver(chk).observe(b); else window.addEventListener('resize', chk);   // 자판이 내려가 글이 다 들어와도 켜지게
+  ok.onclick = () => { READ.add(id); const e = document.getElementById(id);
+    if (e && !e.checked) { e.checked = true; e.dispatchEvent(new Event('change', {bubbles: true})); }
+    closeDoc(); if (after) after(); };
+};
+window.closeDoc = () => { const o = document.getElementById('docView'); if (o) o.remove(); };
+const ul = a => '<ul>' + a.filter(Boolean).map(x => `<li>${x}</li>`).join('') + '</ul>';
+const BASE_DOC = last => ({t: '[필수] 계정과 캐릭터 만들기', h: `<h4>저장하는 것</h4>${ul(['닉네임, 비밀번호, 성별'])}
+  <h4>쓰는 곳</h4>${ul(['로그인', '캐릭터 모양(남자·여자)'])}
+  <h4>보관 기간</h4>${ul(['<b>탈퇴하면 30일 뒤 지워요</b>'])}
+  <h4>지키는 방법</h4>${ul(['비밀번호는 알아볼 수 없게 바꿔 저장해요'])}
+  <h4>맡기는 곳</h4>${ul(['서버 회사 Supabase(서울에 저장)'])}
+  <h4>관리하는 사람</h4>${ul(['김귀룡 · ryong.office@gmail.com'])}
+  <h4>동의하지 않으면</h4>${ul([last])}`});
+const PACK_DOC = p => ({t: `[${p.b} 열려면 필요] ${p.icon} ${p.b} (${p.k} 기록)`, h: `<h4>저장하는 것</h4>${ul([p.what, p.more])}
+  <h4>쓰는 곳</h4>${ul(['내 기록을 저장하고 다시 보여 주기', '레벨 계산'])}
+  <h4>보관 기간</h4>${ul([`<b>${p.b}${eul(p.b)} 닫거나 탈퇴하면 30일 뒤 지워요</b>`, p.keep])}
+  <h4>맡기는 곳</h4>${ul(['서버 회사 Supabase(서울에 저장)'])}
+  <h4>동의하지 않으면</h4>${ul([`동의하지 않을 수 있어요. 그러면 ${p.b}(${p.k} 기록)만 쓸 수 없고, 나머지는 그대로 써요`])}`});
+const SENS_DOC = p => ({t: `[${p.b} 열려면 필요] ${p.k === '건강' ? '건강' : '신앙'}에 관한 기록`, h: `<p>${p.sens}</p>
+  <p>${p.k === '건강' ? '몸 상태(건강)' : '신앙'}에 관한 정보는 법에서 따로 보호하는 정보라서, 위 동의와 <b>따로</b> 여쭤봐요.</p>
+  <h4>저장하는 것</h4>${ul([p.what])}
+  <h4>쓰는 곳</h4>${ul(['내 기록을 저장하고 다시 보여 주기', '레벨 계산'])}
+  <h4>보관 기간</h4>${ul([`<b>${p.b}${eul(p.b)} 닫거나 탈퇴하면 30일 뒤 지워요</b>`])}
+  <h4>동의하지 않으면</h4>${ul([`동의하지 않을 수 있어요. 그러면 ${p.b}(${p.k} 기록)만 쓸 수 없고, 나머지는 그대로 써요`])}`});
+const REP_DOC = {
+  read: {t: '[선택] 성장 보고서 — 만든 사람이 읽기', h: `<h4>읽는 사람</h4>${ul(['만든 사람 김귀룡 · ryong.office@gmail.com'])}
+    <h4>읽는 것</h4>${ul(['내가 연 확장팩의 기록', '건강·신앙 기록은 「건강·신앙 기록도 넣어요」에 동의했을 때만'])}
+    <h4>쓰는 곳</h4>${ul(['성장 보고서(요약·분석·조언)'])}
+    <h4>쓰는 기간</h4>${ul(['<b>보고서 동의를 끄거나 탈퇴할 때까지</b>'])}
+    <h4>안 하면</h4>${ul(['보고서를 만드는 데 내 기록을 쓰지 않아요', '앱은 그대로 써요', '⚙ 설정에서 언제든 끌 수 있어요'])}`},
+  ai: {t: '[선택] 성장 보고서 — AI로 보내기', h: `<h4>보내는 것</h4>${ul(['내가 연 확장팩의 기록', '건강·신앙 기록은 따로 동의했을 때만'])}
+    <h4>보내는 곳</h4>${ul(['<b>미국의 AI 회사 Anthropic</b> · privacy@anthropic.com'])}
+    <h4>보내는 때</h4>${ul(['보고서를 만들 때마다 인터넷으로 보내요'])}
+    <h4>쓰는 곳</h4>${ul(['보고서 글을 만드는 일'])}
+    <h4>보관 기간</h4>${ul(['<b>Anthropic이 30일 안에 지워요</b>', '<b>다만 Anthropic 이용 규칙을 어긴 것으로 걸린 내용은 최대 2년 보관될 수 있어요</b>'])}
+    <h4>안 하면</h4>${ul(['AI로 보내지 않아요', '⚙ 설정에서 언제든 끌 수 있어요'])}`},
+  sens: {t: '[선택] 성장 보고서 — 건강·신앙 기록 넣기', h: `<p><b>건강·신앙 기록</b>은 법에서 따로 보호하는 정보라서 따로 여쭤봐요.</p>
+    <h4>넣는 것</h4>${ul(['내가 연 집(건강)·아빠 집(신앙)의 기록'])}
+    <h4>쓰는 기간</h4>${ul(['<b>이 동의를 끄거나 탈퇴할 때까지</b>'])}
+    <h4>안 하면</h4>${ul(['보고서에 건강·신앙 기록을 넣지 않아요', '⚙ 설정에서 언제든 끌 수 있어요'])}`},
+};
 function packBlock(p, pre){
-  return `<div class="pk" id="${pre}box_${p.k}" style="display:none;margin:4px 0 12px;padding:10px;border:1px solid var(--line);border-radius:12px">
-    <div style="font-weight:700;margin-bottom:4px">${p.icon} ${p.b} (${p.k})</div>
-    ${ck(pre+'c_'+p.k, `[${p.b}을 열려면 필요] ${p.main}`)}
-    ${p.sens ? ck(pre+'c_'+p.k+'_민감', `[${p.b}을 열려면 필요] ${p.sens}`) : ''}
-    <div class="small" style="margin-left:28px">동의하지 않을 수 있어요. 동의하지 않으면 ${p.b}(${p.k} 기록)은 쓸 수 없고, 나머지는 그대로 써요</div>
-    <div class="small" style="margin-left:28px"><b>${p.what}${eul(p.what)} 서버에 저장해요 · ${p.b}을 닫거나 탈퇴하면 30일 뒤 지워요${p.keep ? ' · '+p.keep : ''}</b></div>
-    ${det(`${p.more ? '· '+p.more+'<br>' : ''}· 쓰는 곳: 내 기록을 저장하고 다시 보여 주기, 레벨 계산`)}
+  return `<div class="pk" id="${pre}box_${p.k}" style="display:none;margin:4px 0 12px;padding:4px 10px;border:1px solid var(--line);border-radius:12px">
+    <div style="font-weight:700;margin:6px 0 0">${p.icon} ${p.b} (${p.k})</div>
+    ${crow(pre+'c_'+p.k, `${p.b} 열려면 필요`, p.main, `<b>${p.what}${eul(p.what)} 저장 · 닫거나 탈퇴하면 30일 뒤 지워요${p.keepS ? ' · '+p.keepS : ''}</b>`, PACK_DOC(p))}
+    ${p.sens ? crow(pre+'c_'+p.k+'_민감', `${p.b} 열려면 필요`, p.sens, `<b>${p.what}${eul(p.what)} 저장 · 닫거나 탈퇴하면 30일 뒤 지워요</b>`, SENS_DOC(p)) : ''}
   </div>`;
 }
-const REPORT_HTML = pre => `<div style="margin-top:14px;font-weight:700">성장 보고서 <span class="small mute">[선택] 안 해도 앱은 그대로 써요</span></div>
-  ${ck(pre+'r_read', '[선택] 내 기록을 만든 사람이 읽고 성장 보고서를 만들어 드려요.')}
-  ${ck(pre+'r_ai', '[선택] 보고서를 만들 때 내 기록을 <b>미국의 AI 회사 Anthropic으로 보내요</b>.')}
-  ${ck(pre+'r_sens', '[선택] <b>건강·신앙 기록</b>도 보고서에 넣어요(따로 동의).')}
-  ${det(`· 만든 사람: 김귀룡 · ryong.office@gmail.com<br>· 읽는 것: 내가 연 확장팩의 기록(건강·신앙은 셋째 칸에 체크했을 때만)<br>· 쓰는 곳: 성장 보고서(요약·분석·조언)<br>
-    · Anthropic: 보고서 글을 만드는 일에 써요 · 보고서를 만들 때마다 인터넷으로 보내요 · 30일 안에 지워요 · 다만 Anthropic 이용 규칙을 어긴 것으로 걸린 내용은 최대 2년 보관될 수 있어요 · privacy@anthropic.com<br>
-    · 안 하면: 보고서를 만드는 데 내 기록을 쓰지 않아요 · ⚙ 설정에서 언제든 끌 수 있어요`)}`;
+const REPORT_HTML = pre => `<div style="margin-top:14px;font-weight:700">성장 보고서 <span class="small mute">선택 · 안 해도 앱은 그대로 써요</span></div>
+  ${crow(pre+'r_read', '선택', '만든 사람이 읽고 성장 보고서를 만들어 드려요', '', REP_DOC.read)}
+  ${crow(pre+'r_ai', '선택', '보고서를 만들 때 내 기록을 AI로 보내요', '<b>미국 AI 회사 Anthropic으로 보내요 · Anthropic이 30일 안에 지워요(이용 규칙 위반으로 걸린 내용은 최대 2년)</b>', REP_DOC.ai)}
+  ${crow(pre+'r_sens', '선택', '건강·신앙 기록도 보고서에 넣어요', '<b>건강·신앙 기록 · 따로 동의</b>', REP_DOC.sens)}`;
 function readConsents(pre, packs){
   const on = id => { const e = document.getElementById(id); return !!(e && e.checked); };
   const c = [];
@@ -492,7 +556,6 @@ const pickedPacks = pre => PACKS.map(p => p.k).filter(k => { const e = document.
 // 처리방침을 보고 돌아와도 적던 것이 남게(2026-11-18): 닉네임·캐릭터·체크는 이 폰에(rpg_signup_draft), 비밀번호는 메모리에만(SGPW)
 let SG = null, SGPW = null;
 const SGD = 'rpg_signup_draft';
-const BASE_DET = last => det('· 쓰는 곳: 로그인, 캐릭터 모양(남자·여자)<br>· 비밀번호는 알아볼 수 없게 바꿔 저장해요<br>· 맡기는 곳: 서버 회사 Supabase(서울에 저장)<br>· 개인정보를 맡아 관리하는 사람: 김귀룡 · ryong.office@gmail.com<br>· ' + last);
 window.signupView = () => {
   SG = null;
   document.getElementById('app').innerHTML = `<div class="card">
@@ -504,10 +567,9 @@ window.signupView = () => {
     <input id="sg_pw2" type="password" autocomplete="new-password" placeholder="비밀번호 한 번 더">
     <div style="margin:8px 0 4px;font-weight:700">캐릭터</div>
     <div class="row" style="gap:8px"><button class="ghost" id="sg_m" style="flex:1" onclick="sgGender('남')">🧍‍♂️ 남자</button><button class="ghost" id="sg_f" style="flex:1" onclick="sgGender('여')">🧍‍♀️ 여자</button></div>
-    <div style="margin-top:12px">${ck('sg_base', '[필수] 닉네임·비밀번호·성별로 내 계정과 캐릭터를 만들어요.')}
-      <div class="small" style="margin-left:28px"><b>닉네임·비밀번호·성별을 저장해요 · 탈퇴하면 30일 뒤 지워요</b></div>
-      ${BASE_DET('동의하지 않으면 가입할 수 없어요')}
-      ${ck('sg_age', '[필수] 만 14세 이상이에요.')}</div>
+    <div style="margin-top:14px;font-weight:700">동의</div>
+    ${crow('sg_base', '필수', '계정과 캐릭터를 만들어요', '<b>닉네임·비밀번호·성별 저장 · 탈퇴하면 30일 뒤 지워요</b>', BASE_DOC('동의하지 않을 수 있어요. 그러면 가입할 수 없어요'))}
+    ${crow('sg_age', '필수', '만 14세 이상이에요')}
     <div style="margin-top:12px;font-weight:700">쓸 기록 고르기 <span class="small mute">(만든 사람이 열어 줘요)</span></div>
     ${pickHtml('sg_')}${PACKS.map(p => packBlock(p, 'sg_')).join('')}
     ${REPORT_HTML('sg_')}
@@ -523,7 +585,8 @@ window.signupView = () => {
   if (SGPW) { document.getElementById('sg_pw').value = SGPW[0]; document.getElementById('sg_pw2').value = SGPW[1]; }
   if (d) {
     document.getElementById('sg_nick').value = d.nick || '';
-    for (const id of d.on || []) { const e = document.getElementById(id); if (e) { e.checked = true; if (e.onchange) e.onchange(); } }
+    for (const id of d.on || []) { if (DOCS[id]) continue;   // 전문이 있는 동의는 되살리지 않음(다시 읽고 체크, 2026-11-20 법무사)
+      const e = document.getElementById(id); if (e) { e.checked = true; if (e.onchange) e.onchange(); } }
     if (d.g) sgGender(d.g);
   }
   card.onchange();
@@ -550,10 +613,8 @@ window.sgGender = g => { SG = g; document.getElementById('sg_m').className = g =
 window.consentView = () => {
   const s = sheet(`<h3>시작 전에 여쭤볼게요</h3>
     <div class="small">기록을 서버에 저장해 두려고, 몇 가지만 여쭤볼게요. <a href="#" onclick="openPrivacy();return false">개인정보 처리방침 ›</a></div>
-    <div style="margin-top:10px">${ck('cv_base', '[필수] 닉네임·비밀번호·성별로 내 계정과 캐릭터를 만들어요.')}
-      <div class="small" style="margin-left:28px"><b>닉네임·비밀번호·성별을 저장해요 · 탈퇴하면 30일 뒤 지워요</b></div>
-      ${BASE_DET('동의하지 않으면 라이프 RPG를 쓸 수 없어요')}
-      ${ck('cv_age', '[필수] 만 14세 이상이에요.')}</div>
+    <div style="margin-top:12px">${crow('cv_base', '필수', '계정과 캐릭터를 만들어요', '<b>닉네임·비밀번호·성별 저장 · 탈퇴하면 30일 뒤 지워요</b>', BASE_DOC('동의하지 않을 수 있어요. 그러면 라이프 RPG를 쓸 수 없어요'))}
+    ${crow('cv_age', '필수', '만 14세 이상이에요')}</div>
     <div style="margin-top:12px;font-weight:700">쓸 기록 고르기 <span class="small mute">(만든 사람이 열어 줘요)</span></div>
     ${pickHtml('cv_')}${PACKS.map(p => packBlock(p, 'cv_')).join('')}
     ${REPORT_HTML('cv_')}
@@ -587,7 +648,7 @@ window.openSettings = () => {
     const act = st === 'open' ? (m.owner ? '' : `<button class="ghost" style="width:auto;padding:4px 10px" onclick="packClose('${p.k}')">닫기</button>`)
       : st === 'requested' ? '' : `<button style="width:auto;padding:4px 10px" onclick="packAdd('${p.k}')">더하기</button>`;
     return `<div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span>${p.icon} ${p.b} <span class="small mute">${ST[st]||'안 씀'}</span></span>${act}</div>`; }).join('');
-  const rc = (k, label) => `<label class="cons"><input type="checkbox" ${m.consents[k] ? 'checked' : ''} onchange="setReport('${k}', this.checked)"><span>${label}</span></label>`;
+  const rc = (k, label) => `<label class="cons"><input type="checkbox" id="st_${k}" ${m.consents[k] ? 'checked' : ''} onclick="return repTap(this,'${k}')"><span>${label}</span></label>`;   // 켤 때는 전문을 먼저 읽게(2026-11-20)
   sheet(`<h3>⚙ 설정</h3>
     <div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span>캐릭터 ${meEmoji()}</span><button class="ghost" style="width:auto;padding:4px 10px" onclick="askGender()">바꾸기</button></div>
     <div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span>🔑 비밀번호</span><button class="ghost" style="width:auto;padding:4px 10px" onclick="pwView()">바꾸기</button></div>
@@ -683,6 +744,8 @@ window.openMenu = () => {
     + (has('관계') && N.openRel ? it('👥', '관계 기록', 'openRel()') : '')
     + it('📱', '켜야 할 것', 'setupView()') + it('⚙', '설정', 'openSettings()'));
 };
+window.repTap = (e, k) => { if (!e.checked) { setReport(k, false); return true; }
+  DOCS[e.id] = REP_DOC[{보고서_읽기: 'read', 보고서_AI: 'ai', 보고서_민감: 'sens'}[k]]; openDoc(e.id, () => setReport(k, true)); return false; };
 window.setReport = async (k, on) => {
   try { const r = await rpc('rpg_consent_set', {p_token: token(), p_items: [k], p_agreed: on}); if (r.error) return toast(r.error);
     ME.consents[k] = on; toast(on ? '켰어요' : '껐어요. 보고서에 쓰지 않아요'); } catch(e) { toast(errMsg(e)); }
@@ -1401,7 +1464,7 @@ function openDiary(){
 }
 window.onNative = ev => {
   // 잠금화면 위에 뜰 때: 열려 있던 창을 다 닫고 마을로(잠금을 안 푼 사람에게 적던 글·보고서가 보이지 않게)
-  if (ev === 'lock') { document.querySelectorAll('.sheet,.ov').forEach(x => x.remove()); try { if (CUR !== 'town' && document.getElementById('nav').style.display !== 'none') tab('town'); } catch (e) {} requestAnimationFrame(fitBubbles); return; }
+  if (ev === 'lock') { document.querySelectorAll('.sheet,.ov,.doc').forEach(x => x.remove()); try { if (CUR !== 'town' && document.getElementById('nav').style.display !== 'none') tab('town'); } catch (e) {} requestAnimationFrame(fitBubbles); return; }
   if (ev === 'resume') { load(); const ss = document.getElementById('setupSheet'); if (ss) setupView(ss.dataset.pack, window._gateGo); return; }
   // 한 번에 켜기가 끝남: 다시 그리고, 다 켜졌으면 알린다
   if (ev === 'perms') { const ss = document.getElementById('setupSheet'); const pk = ss ? ss.dataset.pack : '', go = window._gateGo;
