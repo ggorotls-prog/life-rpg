@@ -1183,7 +1183,7 @@ async function spiritDay(){ SP = await rpc('rpg_spirit_day', {p_token: token()})
 const spOf = k => (SP ? SP.entries : []).filter(e => e.kind === k);
 function openSpiritApp(tab){
   if (window.Native && Native.openSpirit) Native.openSpirit(tab);
-  else open('https://personal-record-alpha.vercel.app/?tab=' + encodeURIComponent(tab));
+  else open('https://personal-record-1gu.pages.dev/?tab=' + encodeURIComponent(tab));
 }
 // 마을 아빠 집 옆 ＋ 말풍선: 생각났을 때 바로 「오늘 기록」(감사·칭찬·순종·깨달음·SOC). 지난번 고른 종류로 연다(2026-11-18 룡 「바로 안 하면 까먹거든」)
 window.openFwNow = async () => {
