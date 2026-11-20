@@ -30,6 +30,7 @@ final class Perms {
             new Item("notify", "", "🔔 알림", "앱이 알림을 띄워요(승인·새 버전·「기록할까요?」). 안 켜도 기록은 쓸 수 있어요", Build.VERSION.SDK_INT >= 33 ? "android.permission.POST_NOTIFICATIONS" : null),
             new Item("battery", "", "🔋 배터리 아끼기에서 빼기", "앱을 안 열어도 15분마다 새 소식을 확인해요. 안 켜도 기록은 쓸 수 있어요", null),
             new Item("calendar", "업무", "📅 캘린더 보기", "폰 캘린더의 오늘 일정(제목·시간)을 읽어 마을과 「오늘」에 보여 줘요. 안 켜도 할 일은 쓸 수 있어요", Manifest.permission.READ_CALENDAR),
+            new Item("mic", "", "🎤 마이크", "잠금화면 앞 ＋ 수집에서 말한 것을 폰의 음성 인식이 글로 바꿔 적어요(여기서는 소리를 저장하지 않아요). 위젯 🎙 녹음도 이 허락을 써요. 안 켜도 쳐서 적을 수 있어요", Manifest.permission.RECORD_AUDIO),
             new Item("phone", "관계", "📞 통화가 끝났는지 알기", "통화가 끝난 때를 알아 누구와 했는지 물어요. 안 켜도 사람·메모 기록은 쓸 수 있어요", Manifest.permission.READ_PHONE_STATE),
             new Item("calllog", "관계", "📞 통화 기록 읽기", "번호·방향·시각·길이를 읽어요. 녹음·통화 내용은 안 읽어요. 안 켜도 사람·메모 기록은 쓸 수 있어요", Manifest.permission.READ_CALL_LOG),
             new Item("contacts", "관계", "👤 연락처", "이름·번호를 읽어 이름을 보여 주고 뺄 번호를 골라요. 등록한 사람의 이름은 폰 연락처와 서로 맞춰요. 안 켜도 사람·메모 기록은 쓸 수 있어요", Manifest.permission.READ_CONTACTS),

@@ -38,6 +38,10 @@
 
     <!-- 아빠 집: 영성 기록 앱을 열려면 그 앱이 보여야 한다(안드로이드 11+) -->
     <queries>
+        <!-- 🎤 잠금화면 앞 ＋ 수집: 폰의 음성 인식 서비스를 찾으려고(2026-11-20) -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
         <package android:name="app.personalrecord" />
         <package android:name="app.todohub" />
         <package android:name="app.faithbudget" />

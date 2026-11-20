@@ -37,6 +37,10 @@ public final class WorkApp {
             hidePhoto(getWindow().getDecorView());
         }
 
+        // 2026-11-20 룡: 잠금화면 앞 ＋ 수집은 열면 바로 듣는다(말이 끝나면 적어 두기, 한 자라도 치면 듣기 끝)
+        @Override
+        protected boolean voiceOnOpen() { return true; }
+
         private boolean locked() {
             android.app.KeyguardManager k = getSystemService(android.app.KeyguardManager.class);
             return k != null && k.isKeyguardLocked();
