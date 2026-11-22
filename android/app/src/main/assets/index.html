@@ -1067,8 +1067,9 @@ window.doneTask = (id, mine) => {
   if (!mine) { window.Native && Native.openTodo && Native.openTodo(); return; }
   const t = HOME.tasks.find(x => x.id === id);
   const s = sheet(`<h3>완료할까요?</h3><div>${esc(t ? t.title : '')}</div><div style="display:flex;gap:8px;margin-top:14px"><button class="ghost" id="no">아니요</button><button id="yes">완료</button></div>`);
-  s.querySelector('#no').onclick = closeSheet;
-  s.querySelector('#yes').onclick = () => save('rpg_task_done', {p_id: id}, '퀘스트 완료');
+  // 이 확인 창만 닫는다. 아래 「오늘」 창은 그대로 두고 load()가 새로 채운다(2026-11-22 룡 「완료 누르면 오늘 창이 닫힘」)
+  s.querySelector('#no').onclick = () => s.remove();
+  s.querySelector('#yes').onclick = () => save('rpg_task_done', {p_id: id}, '퀘스트 완료', s);
 };
 
 function sheet(html){
@@ -1079,11 +1080,11 @@ function sheet(html){
   document.body.appendChild(s); return s;
 }
 const closeSheet = () => { document.querySelectorAll('.sheet').forEach(s => s.remove()); if (CHANGED) { CHANGED = false; load(); } };
-async function save(fn, args, okMsg){
+async function save(fn, args, okMsg, only){   // only = 그 창 하나만 닫는다(없으면 모두)
   try { const r = await rpc(fn, Object.assign({p_token: token()}, args));
     if (r && r.error) { toast(r.error); return r; }
     if (r && r.need) return r;
-    closeSheet(); if (okMsg) toast(okMsg); await load(); return r;
+    if (only) only.remove(); else closeSheet(); if (okMsg) toast(okMsg); await load(); return r;
   } catch(e) { toast('저장하지 못했어요. ' + errMsg(e)); return null; }
 }
 
