@@ -653,6 +653,7 @@ window.openSettings = () => {
     <div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span>캐릭터 ${meEmoji()}</span><button class="ghost" style="width:auto;padding:4px 10px" onclick="askGender()">바꾸기</button></div>
     <div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span>🔑 비밀번호</span><button class="ghost" style="width:auto;padding:4px 10px" onclick="pwView()">바꾸기</button></div>
     <div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span>📱 켜야 할 것</span><button class="ghost" style="width:auto;padding:4px 10px" onclick="setupView()">보기</button></div>
+    ${window.Native && Native.sendDiag ? `<div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span>🩺 진단 보내기 <span class="small mute">앱이 이상할 때</span></span><button class="ghost" style="width:auto;padding:4px 10px" onclick="Native.sendDiag()">보내기</button></div>` : ''}
     ${m.owner ? `<div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span>📮 신청 · 구성원</span><button class="ghost" style="width:auto;padding:4px 10px" onclick="openJoins()">열기</button></div>` : ''}
     <div style="margin-top:12px;font-weight:700">확장팩</div>${rows}
     ${m.owner ? '' : `<div style="margin-top:12px;font-weight:700">성장 보고서 <span class="small mute">선택</span></div>

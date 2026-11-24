@@ -8,6 +8,7 @@ public class App extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+        Diag.watch(this);   // 🩺 진단 기록(2026-11-24): 화면이 열리고 닫힐 때마다 한 줄
         app.recordkit.work.Work.initPush(this, BuildConfig.FIREBASE_API_KEY);
     }
 }

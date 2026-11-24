@@ -205,7 +205,10 @@ public class MainActivity extends Activity {
     }
 
     @Override
-    public void onConfigurationChanged(android.content.res.Configuration c) { super.onConfigurationChanged(c); }
+    public void onConfigurationChanged(android.content.res.Configuration c) {
+        super.onConfigurationChanged(c);
+        Diag.log(this, "MainActivity 화면 바뀜 " + c.screenWidthDp + "x" + c.screenHeightDp + "dp");
+    }
 
     void openLedger() {
         runOnUiThread(() -> { try { startActivity(new Intent(this, WalletActivity.class)); } catch (Exception ignored) {} });
@@ -224,6 +227,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onNewIntent(Intent i) {
         super.onNewIntent(i);
+        Diag.log(this, "MainActivity 다시 불림 " + Diag.how(i));
         take(i);
         openFromIntent();
     }
@@ -506,6 +510,17 @@ public class MainActivity extends Activity {
 
         // 아빠 집: 영성 기록의 그 탭(묵상·일기·가정예배)을 오늘 날짜로. 2026-11-16부터 이 앱 안의 영성 기록 화면 그 자체(원본 한 벌 spiritkit)
         @JavascriptInterface public void openSpirit(String tab) { open(SpiritApp.screen(MainActivity.this, tab)); }
+
+        // 🩺 진단 보내기(2026-11-24): 진단 글을 공유 창으로(카톡 등). 기록 내용은 들어 있지 않다
+        @JavascriptInterface public void sendDiag() {
+            new Thread(() -> {
+                String t = Diag.report(getApplicationContext());
+                runOnUiThread(() -> {
+                    try { startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, t), "진단 보내기")); }
+                    catch (Exception e) { js("toast('공유 창을 열지 못했어요')"); }
+                });
+            }).start();
+        }
 
         // 묵상 이미지 공유: 사진(Pictures/라이프 RPG)에 저장하고 그 사진을 공유 창으로(카톡 등)
         @JavascriptInterface public void shareImage(String dataUrl, String name) {
