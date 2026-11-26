@@ -172,10 +172,12 @@ public class MainActivity extends Activity {
     }
 
     private volatile double[] lockHole;   // ＋ 수집 말풍선 자리 {왼, 위, 오른, 아래, 웹 화면 폭} (CSS 좌표)
+    private volatile double[] lockHole2;  // 아빠 집 ＋ 말풍선 자리(2026-11-26, 같은 꼴)
 
     // root 안의 (x, y)가 말풍선 자리인가. 판과 웹 화면은 같은 root에 겹쳐 있다. 여유는 두지 않는다(옆 사무실·🎙이 눌리지 않게)
-    private boolean inHole(float x, float y) {
-        double[] h = lockHole;
+    private boolean inHole(float x, float y) { return inHole(lockHole, x, y) || inHole(lockHole2, x, y); }
+
+    private boolean inHole(double[] h, float x, float y) {
         if (h == null || web == null || web.getWidth() == 0 || h[2] <= h[0] || h[3] <= h[1]) return false;
         double k = web.getWidth() / h[4], pad = 0;
         double wx = x - web.getLeft(), wy = y - web.getTop();
@@ -549,6 +551,11 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void lockHole(double l, double t, double r, double b, double vw) {
             lockHole = vw > 0 ? new double[]{l, t, r, b, vw} : null;
         }
+        // 🎤 아빠 집 ＋ = 말로 적는 나눌거리(2026-11-26 룡). 잠금 위에서는 적기만 하는 창
+        @JavascriptInterface public void spiritAdd() { open(SpiritApp.voice(MainActivity.this, lockMode)); }
+        @JavascriptInterface public void lockHole2(double l, double t, double r, double b, double vw) {
+            lockHole2 = vw > 0 ? new double[]{l, t, r, b, vw} : null;
+        }
         @JavascriptInterface public void todoAssign() { open(WorkApp.screen(MainActivity.this, true)); }
 
         // 👥 이웃 = 관계 기록 앱 그 자체(RelApp.Screen, 2026-11-16)
@@ -592,7 +599,8 @@ public class MainActivity extends Activity {
 
     private void open(Intent i) {
         // 잠금 위 마을에서는 ＋ 수집 적기 창만 연다(구멍 가장자리·잠금 중 뜬 창으로 다른 화면이 잠금 뒤에 열리지 않게, 2026-11-19 검토)
-        if (lockMode && (i.getComponent() == null || !WorkApp.LockQuick.class.getName().equals(i.getComponent().getClassName()))) return;
+        if (lockMode && (i.getComponent() == null || !(WorkApp.LockQuick.class.getName().equals(i.getComponent().getClassName())
+                || SpiritApp.LockVoice.class.getName().equals(i.getComponent().getClassName())))) return;
         runOnUiThread(() -> {
             try { startActivity(i); } catch (Exception e) { try { startActivity(new Intent(Settings.ACTION_SETTINGS)); } catch (Exception ignored) {} }
         });

@@ -938,6 +938,9 @@ function fitBubbles(){
   // 잠금화면 앞 마을: ＋ 수집 말풍선 자리를 앱에 알려 그 자리만 잠금 판을 뚫는다
   const N = window.Native, q = document.getElementById('qbub');
   if (N && N.lockHole) { try { if (q) { const r = q.getBoundingClientRect(); N.lockHole(r.left, r.top, r.right, r.bottom, window.innerWidth); } else N.lockHole(0, 0, 0, 0, 0); } catch (e) {} }
+  // 아빠 집 ＋(2026-11-26): 잠금화면 앞에서도 말로 적게 그 자리도 뚫는다(말로 적는 창이 있는 새 앱만)
+  const fq = document.getElementById('fbub');
+  if (N && N.lockHole2 && N.spiritAdd) { try { if (fq) { const r = fq.getBoundingClientRect(); N.lockHole2(r.left, r.top, r.right, r.bottom, window.innerWidth); } else N.lockHole2(0, 0, 0, 0, 0); } catch (e) {} }
 }
 function town(res, h){
   loadPlans();
@@ -974,7 +977,7 @@ function town(res, h){
   const todayN = (h.tasks || []).filter(t => t.requester !== h.name || (t.due && t.due <= h.today) || ((t.remind||'').slice(0,10) && (t.remind||'').slice(0,10) <= h.today)).length;
   document.getElementById('town').innerHTML = `
     <div id="world">${SCENE}
-      ${has('영성') ? spot([179, 214, 251, 300], 'openFather()', '영성', '아빠 집', sp.length ? sp.join('·') : '아직') + bubble(251, 214, `<b onclick="openFwNow()">＋</b>`) : ''}
+      ${has('영성') ? spot([179, 214, 251, 300], 'openFather()', '영성', '아빠 집', sp.length ? sp.join('·') : '아직') + bubble(251, 214, `<b id="fbub" onclick="fwAdd()" aria-label="나눌거리 말로 적기">＋</b>`) : ''}
       ${has('건강') ? spot([41, 350, 129, 430], 'openHome()', '건강', '집', homeSt) : ''}
       ${has('재정') ? spot([264, 506, 362, 578], 'openLedger()', '재정', '금고', (finPend ? `<span class="warn">안 적은 것 ${finPend}</span>` : h.fin_today ? '오늘 '+h.fin_today+'건' : '돈 썼을 때')) + bubble(362, 506, `<b class="in" onclick="openWalletKind('수입')">＋</b><b class="out" onclick="openWalletKind('지출')">−</b>`) : ''}
       ${has('업무') && N.openTodo ? spot([42, 556, 112, 630], 'Native.openTodo()', null, '사무실', '할 일') + (N.openMeet ? bubble(112, 556, meetBub(N)) : '') + (N.todoAdd ? bubbleL(42, 556, `<b onclick="Native.todoAdd()" aria-label="할 일 적기">＋</b>`, 'qbub') : '') : ''}
@@ -1195,6 +1198,12 @@ window.openFwNow = async () => {
   try { await spiritDay(); } catch(e) { toast(errMsg(e)); return; }   // 늘 새로 받는다(날짜가 바뀌었거나 그사이 묵상을 했을 수 있다)
   let last = '감사'; try { last = localStorage.getItem('rpg_fw_kind') || '감사'; } catch(e) {}
   openFw(FW_KINDS.includes(last) ? last : '감사');
+};
+// 🎤 아빠 집 ＋(2026-11-26 룡 「누르면 바로 마이크, 말 다 하고 뒤에 고른다」): 폰의 말로 적는 창. 그 창이 없는 옛 앱·브라우저는 위 「오늘 기록」 창
+window.fwAdd = () => {
+  if (gate('영성', fwAdd)) return;
+  const N = window.Native;
+  if (N && N.spiritAdd) N.spiritAdd(); else openFwNow();
 };
 // 통독 읽은 것·번 수 받아 두기
 async function bibleLoad(){ const r = await rpc('rpg_bible', {p_token: token()}); BREAD = new Set(r.read); BROUNDS = +r.rounds || 0; BSTART = r.started || null; BDONE = r.done || []; }

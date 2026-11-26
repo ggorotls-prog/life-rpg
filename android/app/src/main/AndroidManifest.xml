@@ -256,6 +256,20 @@
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|keyboardHidden" />
         <!-- 감사·칭찬·SOC·기도제목 작은 적기 창. exported라 One hand 제스처에서 바로 열 수 있다 -->
+        <!-- 🎤 아빠 집 ＋ 말로 적는 나눌거리(2026-11-26). LockVoice = 잠금화면 앞 마을에서, 적기만 -->
+        <activity
+            android:name=".SpiritApp$Voice"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:windowSoftInputMode="stateHidden|adjustResize"
+            android:theme="@style/SpiritQuickAdd" />
+        <activity
+            android:name=".SpiritApp$LockVoice"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
+            android:windowSoftInputMode="stateHidden|adjustResize"
+            android:theme="@style/SpiritQuickAdd" />
         <activity
             android:name=".SpiritApp$Quick"
             android:exported="true"

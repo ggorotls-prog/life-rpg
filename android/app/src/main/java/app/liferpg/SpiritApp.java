@@ -27,6 +27,32 @@ public final class SpiritApp {
 
     /** 감사·칭찬·SOC·기도제목 작은 적기 창(One hand에서도 바로 열게 exported) */
     public static class Quick extends app.recordkit.spirit.QuickAddActivity {}
+    /** 🎤 아빠 집 ＋ = 말로 적는 나눌거리(2026-11-26 룡: 누르면 바로 마이크, 말한 뒤 종류 고르기) */
+    public static class Voice extends app.recordkit.spirit.VoiceAddActivity {}
+    /** 잠금화면 앞 마을의 아빠 집 ＋: 같은 창을 잠금 위에. 적기만 하고 다른 화면은 열지 않는다 */
+    public static class LockVoice extends app.recordkit.spirit.VoiceAddActivity {
+        @Override
+        protected void onCreate(android.os.Bundle b) {
+            setShowWhenLocked(true);
+            super.onCreate(b);
+        }
+
+        @Override
+        protected boolean onLock() {
+            android.app.KeyguardManager k = getSystemService(android.app.KeyguardManager.class);
+            return k != null && k.isKeyguardLocked();
+        }
+
+        @Override
+        public void startActivityForResult(Intent i, int code, android.os.Bundle opts) {
+            if (onLock()) return; // 잠금 중에는 다른 화면(로그인 등)을 잠금 뒤에 열지 않는다
+            super.startActivityForResult(i, code, opts);
+        }
+    }
+
+    static Intent voice(Context c, boolean lock) {
+        return new Intent(c, lock ? LockVoice.class : Voice.class).addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
+    }
     /** 홈 화면 위젯: 감사 · 칭찬 · SOC · 기도제목 */
     public static class Widget extends app.recordkit.spirit.RecordWidget {}
     /** 묵상 알림 시각·7분 타이머·폰 켤 때 다시 맞추기 */
