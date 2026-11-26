@@ -946,7 +946,7 @@ function town(res, h){
   const hh = h.health;
   const homeSt = !hh ? '연결 안 됨 · 관리자에게 말해 주세요'
     : hh.need === 'bed_yesterday' ? '어젯밤 잔 시각부터'
-    : hh.need === 'wake' ? '아직 안 일어남'
+    : hh.need === 'wake' || !hh.wake ? '아직 안 일어남'
     : hh.bed ? `일어남 ${hh.wake} · 잠 ${hh.bed}` : `일어남 ${hh.wake} ${FACE[hh.condition]||''}`;
   const sp = h.spirit_today || [];
   const ev = nextEvents(h, 2), N = window.Native || {};
@@ -1098,7 +1098,7 @@ window.openHome = () => {
   if (window.Native && Native.openHealth) { Native.openHealth(); return; }
   const h = HOME.health;
   if (!h) return toast('건강 기록 계정이 이어져 있지 않아요. 관리자에게 말해 주세요');
-  if (h.need) {
+  if (h.need || !h.wake) {
     const yb = h.need === 'bed_yesterday';
     const s = sheet(`<h3>🏠 일어났어요</h3>
       ${yb ? `<div class="small mute">어젯밤 몇 시에 잤어요?</div><input id="yb" type="time" value="23:00">` : ''}
