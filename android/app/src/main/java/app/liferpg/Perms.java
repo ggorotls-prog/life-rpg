@@ -55,7 +55,8 @@ final class Perms {
             Item it = find(id);
             if (it == null) return true;
             if ("관계".equals(it.pack) && has(c, "app.relrecord")) return true;
-            if ("sleepLock".equals(id) && has(c, "app.liferoom")) return true;
+            // 취침 잠금(접근성)은 2026-11-26 뺐다(룡 「굳이 폰 못 쓰게 하는 게 필요한가 싶어. 모든 판에서 빼」) → 묻지 않는다
+            if ("sleepLock".equals(id)) return true;
             if (it.perm != null) return c.checkSelfPermission(it.perm) == PackageManager.PERMISSION_GRANTED;
             String pkg = c.getPackageName();
             switch (id) {

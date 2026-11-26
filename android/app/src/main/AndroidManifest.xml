@@ -107,12 +107,20 @@
         </receiver>
 
         <!-- 🏠 집 = 건강 기록 화면 그 자체(2026-11-15 룡). 건강 기록 앱 MainActivity와 같은 설정 -->
+        <!-- 구글 로그인(2026-11-26): 크롬 창에서 로그인이 끝나면 app.liferpg://auth 로 이 화면에 돌아온다(healthkit HealthScreen.authIntent) -->
         <activity
             android:name=".HealthActivity"
-            android:exported="false"
+            android:exported="true"
             android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize"
-            android:configChanges="orientation|screenSize|keyboardHidden" />
+            android:configChanges="orientation|screenSize|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="app.liferpg" android:host="auth" />
+            </intent-filter>
+        </activity>
 
         <!-- 건강 기록 아침 8시·밤 10시 알림(건강 기록 앱이 없을 때만 울림), 재부팅·업데이트 뒤 다시 걸기 -->
         <receiver android:name=".HealthReminder" android:exported="false">
@@ -122,17 +130,7 @@
             </intent-filter>
         </receiver>
 
-        <!-- 취침 잠금: 건강 기록 앱 LockService와 같은 것. 룡이 설정 > 접근성에서 한 번 켠다 -->
-        <service
-            android:name=".LockService"
-            android:exported="true"
-            android:label="라이프 RPG 취침 잠금 (건강 기록)"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data android:name="android.accessibilityservice" android:resource="@xml/health_lock_service" />
-        </service>
+        <!-- 취침 잠금(접근성 서비스 LockService)은 뺐다(2026-11-26 룡 「모든 판에서 빼」). 되살릴 때는 건강 기록 앱 manifest의 메모를 본다 -->
 
         <!-- 👛 지갑 = 재정 기록(2026-11-15 2단계). 원본 한 벌 finkit: 장부 화면 · 빠른 기록 창 · 「+ 수입 | − 지출」 위젯 -->
         <activity

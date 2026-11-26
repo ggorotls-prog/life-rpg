@@ -222,43 +222,8 @@ jobs:
             if grep -q "app.liferpg/.HealthActivity" top1.txt; then echo "로그인 전인데 건강 기록 화면이 열렸어요"; exit 1; fi
             echo "🏠 집(로그인 전) → 마을에 머묾"
             adb shell dumpsys alarm | grep -c "app.liferpg" || true
-            # ② 취침 잠금 서비스가 폰과 이어지는지(건강 기록 앱 시험과 같음)
-            adb shell settings put secure enabled_accessibility_services app.liferpg/app.liferpg.LockService
-            adb shell settings put secure accessibility_enabled 1
-            sleep 5
-            adb shell dumpsys accessibility > acc.txt || true
-            grep "Bound services" acc.txt | grep -q "라이프 RPG 취침 잠금" || { grep -i -E "liferpg|Bound services" acc.txt || true; echo "잠금 서비스가 안 이어졌어요"; exit 1; }
-            echo "잠금 서비스 이어짐"
-            # ③ 「잘게요」로 잠긴 상태(시험판에 잠금 시각을 넣는다) → 다른 앱(설정)을 열면 덮개가 덮고 건강 기록 화면으로 끌려온다
-            adb shell settings delete secure enabled_accessibility_services || true
-            adb uninstall app.liferpg
-            adb install -r app-debug.apk
-            adb shell pm grant app.liferpg android.permission.POST_NOTIFICATIONS || true
-            NOW="$(adb shell date +%s | tr -d '\r')000"; printf '<?xml version="1.0" encoding="utf-8" standalone="yes" ?>\n<map>\n    <long name="locked_at" value="%s" />\n    <boolean name="acc_asked" value="true" />\n</map>\n' "$NOW" > life.xml; cat life.xml
-            adb push life.xml /data/local/tmp/life.xml
-            adb shell chmod 644 /data/local/tmp/life.xml
-            adb shell run-as app.liferpg mkdir -p shared_prefs
-            adb shell run-as app.liferpg cp /data/local/tmp/life.xml shared_prefs/life.xml
-            adb shell run-as app.liferpg cat shared_prefs/life.xml
-            adb shell settings put secure enabled_accessibility_services app.liferpg/app.liferpg.LockService
-            adb shell settings put secure accessibility_enabled 1
-            sleep 6
-            adb logcat -c
-            adb shell am start -W -a android.settings.SETTINGS
-            sleep 6
-            adb exec-out screencap -p > shot-locked.png || true
-            adb shell dumpsys activity activities | grep -E "topResumedActivity|mResumedActivity" | tee top2.txt
-            adb shell dumpsys window windows | grep -i -E "AccessibilityOverlay|ACCESSIBILITY_OVERLAY|liferpg" | head -20 || true
-            grep -q "app.liferpg/.HealthActivity" top2.txt || { echo "잠겼는데 설정 앱이 열려 있어요"; exit 1; }
-            echo "잠금 확인: 설정을 열어도 건강 기록 화면으로 돌아옴"
-            # ④ 잠긴 채로 마을(라이프 RPG 첫 화면)을 열어도 건강 기록 화면으로
-            adb shell am start -W -n app.liferpg/.MainActivity
-            sleep 5
-            adb shell dumpsys activity activities | grep -E "topResumedActivity|mResumedActivity" | tee top3.txt
-            grep -q "app.liferpg/.HealthActivity" top3.txt || { echo "잠겼는데 마을이 열려 있어요"; exit 1; }
-            echo "잠긴 채 마을을 열어도 건강 기록 화면"
-            adb logcat -d -b crash > crash5.txt || true
-            if grep -q "FATAL EXCEPTION" crash5.txt; then cat crash5.txt; exit 1; fi
+            # ②~④ 취침 잠금(접근성 서비스) 시험은 2026-11-26 뺐다(잠금 없앰). 접근성 서비스가 앱에 없는지만 본다
+            adb shell dumpsys package app.liferpg | grep -q "BIND_ACCESSIBILITY_SERVICE" && { echo "접근성 서비스가 아직 있어요"; exit 1; } || echo "접근성 서비스 없음"
             # ---- 👛 지갑 = 재정 기록(2026-11-15 2단계) ----
             adb shell settings delete secure enabled_accessibility_services || true
             adb uninstall app.liferpg
