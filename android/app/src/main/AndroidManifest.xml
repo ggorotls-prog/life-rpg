@@ -130,7 +130,17 @@
             </intent-filter>
         </receiver>
 
-        <!-- 취침 잠금(접근성 서비스 LockService)은 뺐다(2026-11-26 룡 「모든 판에서 빼」). 되살릴 때는 건강 기록 앱 manifest의 메모를 본다 -->
+        <!-- 취침 잠금: 건강 기록 앱 LockService와 같은 것. 설정에서 켠 사람만 쓴다(2026-11-27 룡 「선택적으로」) -->
+        <service
+            android:name=".LockService"
+            android:exported="true"
+            android:label="라이프 RPG 취침 잠금 (건강 기록)"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/health_lock_service" />
+        </service>
 
         <!-- 👛 지갑 = 재정 기록(2026-11-15 2단계). 원본 한 벌 finkit: 장부 화면 · 빠른 기록 창 · 「+ 수입 | − 지출」 위젯 -->
         <activity

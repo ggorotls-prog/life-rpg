@@ -222,8 +222,8 @@ jobs:
             if grep -q "app.liferpg/.HealthActivity" top1.txt; then echo "로그인 전인데 건강 기록 화면이 열렸어요"; exit 1; fi
             echo "🏠 집(로그인 전) → 마을에 머묾"
             adb shell dumpsys alarm | grep -c "app.liferpg" || true
-            # ②~④ 취침 잠금(접근성 서비스) 시험은 2026-11-26 뺐다(잠금 없앰). 접근성 서비스가 앱에 없는지만 본다
-            adb shell dumpsys package app.liferpg | grep -q "BIND_ACCESSIBILITY_SERVICE" && { echo "접근성 서비스가 아직 있어요"; exit 1; } || echo "접근성 서비스 없음"
+            # 취침 잠금(접근성 서비스)은 2026-11-27 설정에서 켜는 것으로 되살렸다. 앱에 접근성 서비스가 있는지 본다
+            adb shell dumpsys package app.liferpg | grep -q "BIND_ACCESSIBILITY_SERVICE" && echo "접근성 서비스 있음" || { echo "접근성 서비스가 없어요"; exit 1; }
             # ---- 👛 지갑 = 재정 기록(2026-11-15 2단계) ----
             adb shell settings delete secure enabled_accessibility_services || true
             adb uninstall app.liferpg
